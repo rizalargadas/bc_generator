@@ -215,6 +215,28 @@ main {
     color: white;
 }
 
+.btn-primary {
+    padding: 8px 16px;
+    background: #008000;
+    border: 2px solid #008000;
+    border-radius: 8px;
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #006600;
+    border-color: #006600;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 128, 0, 0.3);
+}
+
 .btn-danger {
     padding: 8px 16px;
     background: white;
@@ -384,4 +406,196 @@ main {
 
 .no-data.show {
     display: block;
+}
+
+.processing-section {
+    background: var(--bg-secondary);
+    border-radius: 20px;
+    padding: 20px;
+    min-height: 500px;
+}
+
+.processing-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid var(--border);
+}
+
+.processing-header h2 {
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 0;
+}
+
+.processing-stats {
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 700;
+}
+
+#processing-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+#processing-table thead {
+    background: var(--bg-primary);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+#processing-table th {
+    padding: 10px 8px;
+    text-align: left;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--accent);
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+#processing-table td {
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+}
+
+.status {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-block;
+    min-width: 80px;
+    text-align: center;
+}
+
+.status-writing {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+
+.status-generating {
+    background: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+
+.status-waiting {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.status-done {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status-ready {
+    background: #e2e3e5;
+    color: #383d41;
+    border: 1px solid #d6d8db;
+}
+
+.processing-id {
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.processing-topic {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.topic-id {
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 12px;
+    letter-spacing: 0.5px;
+}
+
+.processing-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--border);
+}
+
+.processing-selection-info {
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 700;
+}
+
+.processing-action-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background: var(--bg-primary);
+    border-radius: 12px;
+    padding: 30px;
+    min-width: 400px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    text-align: center;
+}
+
+.modal-content h3 {
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 0 0 15px 0;
+    color: var(--text-primary);
+}
+
+.modal-content p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0 0 25px 0;
+    line-height: 1.5;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.modal-buttons button {
+    min-width: 120px;
 }

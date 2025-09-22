@@ -5,20 +5,55 @@ document.addEventListener('DOMContentLoaded', function() {
     const tabContents = document.querySelectorAll('.tab-content');
     const topicsTable = document.getElementById('topics-tbody');
     const noDataMessage = document.getElementById('no-data-message');
+    const processingTable = document.getElementById('processing-tbody');
+    const noProcessingData = document.getElementById('no-processing-data');
+    const processingCount = document.getElementById('processing-count');
+    const processingSelectionCount = document.getElementById('processing-selection-count');
+    const selectAllProcessingBtn = document.getElementById('select-all-processing-btn');
+    const deselectAllProcessingBtn = document.getElementById('deselect-all-processing-btn');
+    const cancelSelectedBtn = document.getElementById('cancel-selected-btn');
+    const selectAllProcessingCheckbox = document.getElementById('select-all-processing-checkbox');
+    const cancelModal = document.getElementById('cancel-modal');
+    const bringBackBtn = document.getElementById('bring-back-btn');
+    const deletePermanentlyBtn = document.getElementById('delete-permanently-btn');
+    const cancelModalBtn = document.getElementById('cancel-modal-btn');
     const selectionCount = document.getElementById('selection-count');
     const selectAllBtn = document.getElementById('select-all-btn');
     const deselectAllBtn = document.getElementById('deselect-all-btn');
+    const generateVideosBtn = document.getElementById('generate-videos-btn');
     const deleteSelectedBtn = document.getElementById('delete-selected-btn');
     const clearStorageBtn = document.getElementById('clear-storage-btn');
     const selectAllCheckbox = document.getElementById('select-all-checkbox');
 
     let csvData = [];
     let selectedRows = new Set();
+    let processingData = [];
+    let selectedProcessingRows = new Set();
+    let nextProcessingId = 1;
+    let usedTopicIds = new Set();
+
+    // ID generation function
+    function generateTopicId() {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let id;
+        do {
+            id = '';
+            for (let i = 0; i < 4; i++) {
+                id += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+        } while (usedTopicIds.has(id));
+
+        usedTopicIds.add(id);
+        return id;
+    }
 
     // LocalStorage functions
     function saveToLocalStorage() {
         try {
             localStorage.setItem('bc_generator_data', JSON.stringify(csvData));
+            localStorage.setItem('bc_generator_processing', JSON.stringify(processingData));
+            localStorage.setItem('bc_generator_next_id', nextProcessingId);
+            localStorage.setItem('bc_generator_used_ids', JSON.stringify(Array.from(usedTopicIds)));
             localStorage.setItem('bc_generator_timestamp', new Date().toISOString());
         } catch (e) {
             console.warn('Could not save to localStorage:', e);
@@ -28,10 +63,20 @@ document.addEventListener('DOMContentLoaded', function() {
     function loadFromLocalStorage() {
         try {
             const savedData = localStorage.getItem('bc_generator_data');
+            const savedProcessing = localStorage.getItem('bc_generator_processing');
+            const savedNextId = localStorage.getItem('bc_generator_next_id');
             const timestamp = localStorage.getItem('bc_generator_timestamp');
 
             if (savedData) {
                 csvData = JSON.parse(savedData);
+
+                // Add IDs to existing data that doesn't have them
+                csvData.forEach(row => {
+                    if (!row._topicId) {
+                        row._topicId = generateTopicId();
+                    }
+                });
+
                 if (csvData.length > 0) {
                     populateTable();
 
@@ -47,6 +92,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     fileInfo.classList.add('show');
                 }
             }
+
+            if (savedProcessing) {
+                processingData = JSON.parse(savedProcessing);
+                populateProcessingTable();
+            }
+
+            if (savedNextId) {
+                nextProcessingId = parseInt(savedNextId);
+            }
+
+            const savedUsedIds = localStorage.getItem('bc_generator_used_ids');
+            if (savedUsedIds) {
+                usedTopicIds = new Set(JSON.parse(savedUsedIds));
+            }
         } catch (e) {
             console.warn('Could not load from localStorage:', e);
         }
@@ -55,9 +114,134 @@ document.addEventListener('DOMContentLoaded', function() {
     function clearLocalStorage() {
         try {
             localStorage.removeItem('bc_generator_data');
+            localStorage.removeItem('bc_generator_processing');
+            localStorage.removeItem('bc_generator_next_id');
+            localStorage.removeItem('bc_generator_used_ids');
             localStorage.removeItem('bc_generator_timestamp');
         } catch (e) {
             console.warn('Could not clear localStorage:', e);
+        }
+    }
+
+    function createProcessingItem(topicData) {
+        return {
+            id: topicData._topicId, // Use the same ID from Pending Topics
+            topic: topicData.Topic,
+            script: 'writing...',
+            image: 'waiting...',
+            voiceOvers: 'waiting...',
+            video: 'waiting...',
+            posting: 'waiting'
+        };
+    }
+
+    function getStatusClass(status) {
+        if (status === 'writing...' || status === 'writing') return 'status-writing';
+        if (status === 'generating...' || status === 'generating') return 'status-generating';
+        if (status === 'waiting...' || status === 'waiting') return 'status-waiting';
+        if (status === 'done') return 'status-done';
+        if (status === 'ready to schedule') return 'status-ready';
+        return 'status-waiting';
+    }
+
+    function populateProcessingTable() {
+        processingTable.innerHTML = '';
+        selectedProcessingRows.clear(); // Clear selection when repopulating
+
+        if (processingData.length === 0) {
+            noProcessingData.classList.add('show');
+            document.getElementById('processing-table').style.display = 'none';
+            processingCount.textContent = '0 videos in queue';
+            return;
+        }
+
+        noProcessingData.classList.remove('show');
+        document.getElementById('processing-table').style.display = 'table';
+
+        processingData.forEach((item, index) => {
+            const tr = document.createElement('tr');
+            tr.dataset.index = index;
+
+            // Create checkbox cell
+            const checkboxTd = document.createElement('td');
+            checkboxTd.className = 'checkbox-col';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.addEventListener('change', function() {
+                if (this.checked) {
+                    selectedProcessingRows.add(index);
+                    tr.classList.add('selected');
+                    console.log('Added index:', index, 'Total selected:', selectedProcessingRows.size);
+                } else {
+                    selectedProcessingRows.delete(index);
+                    tr.classList.remove('selected');
+                    console.log('Removed index:', index, 'Total selected:', selectedProcessingRows.size);
+                }
+                updateProcessingSelectionCount();
+            });
+            checkboxTd.appendChild(checkbox);
+            tr.appendChild(checkboxTd);
+
+            // Create other cells individually to avoid innerHTML overwriting
+            const idTd = document.createElement('td');
+            idTd.innerHTML = `<span class="processing-id">${item.id}</span>`;
+            tr.appendChild(idTd);
+
+            const topicTd = document.createElement('td');
+            topicTd.innerHTML = `<span class="processing-topic" title="${item.topic}">${item.topic}</span>`;
+            tr.appendChild(topicTd);
+
+            const scriptTd = document.createElement('td');
+            scriptTd.innerHTML = `<span class="status ${getStatusClass(item.script)}">${item.script}</span>`;
+            tr.appendChild(scriptTd);
+
+            const imageTd = document.createElement('td');
+            imageTd.innerHTML = `<span class="status ${getStatusClass(item.image)}">${item.image}</span>`;
+            tr.appendChild(imageTd);
+
+            const voiceTd = document.createElement('td');
+            voiceTd.innerHTML = `<span class="status ${getStatusClass(item.voiceOvers)}">${item.voiceOvers}</span>`;
+            tr.appendChild(voiceTd);
+
+            const videoTd = document.createElement('td');
+            videoTd.innerHTML = `<span class="status ${getStatusClass(item.video)}">${item.video}</span>`;
+            tr.appendChild(videoTd);
+
+            const postingTd = document.createElement('td');
+            postingTd.innerHTML = `<span class="status ${getStatusClass(item.posting)}">${item.posting}</span>`;
+            tr.appendChild(postingTd);
+
+            processingTable.appendChild(tr);
+        });
+
+        processingCount.textContent = `${processingData.length} video${processingData.length !== 1 ? 's' : ''} in queue`;
+    }
+
+    function updateProcessingSelectionCount() {
+        const count = selectedProcessingRows.size;
+        console.log('updateProcessingSelectionCount called, count:', count);
+        processingSelectionCount.textContent = `${count} item${count !== 1 ? 's' : ''} selected`;
+
+        if (count === processingData.length && processingData.length > 0) {
+            selectAllProcessingCheckbox.checked = true;
+            selectAllProcessingBtn.style.display = 'none';
+            deselectAllProcessingBtn.style.display = 'inline-block';
+        } else if (count === 0) {
+            selectAllProcessingCheckbox.checked = false;
+            selectAllProcessingBtn.style.display = 'inline-block';
+            deselectAllProcessingBtn.style.display = 'none';
+        } else {
+            selectAllProcessingCheckbox.checked = false;
+            selectAllProcessingBtn.style.display = 'inline-block';
+            deselectAllProcessingBtn.style.display = 'none';
+        }
+
+        // Show/hide cancel button based on ANY selection (not just all)
+        console.log('Cancel button visibility:', count > 0 ? 'show' : 'hide');
+        if (count > 0) {
+            cancelSelectedBtn.style.display = 'inline-block';
+        } else {
+            cancelSelectedBtn.style.display = 'none';
         }
     }
 
@@ -109,6 +293,9 @@ document.addEventListener('DOMContentLoaded', function() {
             headers.forEach((header, index) => {
                 row[header.trim()] = values[index] ? values[index].trim() : '';
             });
+
+            // Assign unique ID to each topic
+            row._topicId = generateTopicId();
             data.push(row);
         }
         return data;
@@ -223,6 +410,14 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             checkboxTd.appendChild(checkbox);
             tr.appendChild(checkboxTd);
+
+            // Add ID column first
+            const idTd = document.createElement('td');
+            const idSpan = document.createElement('span');
+            idSpan.className = 'topic-id';
+            idSpan.textContent = row._topicId || 'N/A';
+            idTd.appendChild(idSpan);
+            tr.appendChild(idTd);
 
             requiredColumns.forEach(column => {
                 const td = document.createElement('td');
@@ -341,10 +536,12 @@ document.addEventListener('DOMContentLoaded', function() {
             deselectAllBtn.style.display = 'none';
         }
 
-        // Show/hide delete button based on selection
+        // Show/hide action buttons based on selection
         if (count > 0) {
+            generateVideosBtn.style.display = 'inline-block';
             deleteSelectedBtn.style.display = 'inline-block';
         } else {
+            generateVideosBtn.style.display = 'none';
             deleteSelectedBtn.style.display = 'none';
         }
     }
@@ -473,14 +670,54 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    generateVideosBtn.addEventListener('click', function() {
+        const count = selectedRows.size;
+        const selectedIndices = Array.from(selectedRows);
+        const selectedTopics = selectedIndices.map(index => csvData[index]);
+
+        // Add selected topics to processing queue with full data
+        selectedTopics.forEach(topicData => {
+            const processingItem = createProcessingItem(topicData);
+            processingItem.fullData = topicData; // Store complete topic data for potential restoration
+            processingData.push(processingItem);
+        });
+
+        // Remove selected topics from csvData (sort indices descending to avoid index issues)
+        selectedIndices.sort((a, b) => b - a).forEach(index => {
+            csvData.splice(index, 1);
+        });
+
+        // Clear selection and refresh tables
+        selectedRows.clear();
+        updateSelectionCount();
+        populateTable();
+        populateProcessingTable();
+
+        // Save to localStorage
+        saveToLocalStorage();
+
+        // Switch to Processing tab
+        tabButtons.forEach(btn => btn.classList.remove('active'));
+        tabContents.forEach(content => content.classList.remove('active'));
+
+        document.querySelector('[data-tab="processing"]').classList.add('active');
+        document.getElementById('processing-tab').classList.add('active');
+
+        console.log(`Moved ${count} topics to processing queue:`, selectedTopics);
+    });
+
     clearStorageBtn.addEventListener('click', function() {
         const confirmMessage = 'Are you sure you want to clear all saved data from memory? This will remove all topics and cannot be undone.';
 
         if (confirm(confirmMessage)) {
             clearLocalStorage();
             csvData = [];
+            processingData = [];
+            nextProcessingId = 1;
+            usedTopicIds.clear();
             selectedRows.clear();
             populateTable();
+            populateProcessingTable();
             updateSelectionCount();
 
             fileInfo.innerHTML = `
@@ -498,7 +735,96 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Processing selection controls
+    selectAllProcessingBtn.addEventListener('click', function() {
+        const checkboxes = processingTable.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach((checkbox, index) => {
+            checkbox.checked = true;
+            selectedProcessingRows.add(index);
+            checkbox.closest('tr').classList.add('selected');
+        });
+        updateProcessingSelectionCount();
+    });
+
+    deselectAllProcessingBtn.addEventListener('click', function() {
+        const checkboxes = processingTable.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+            checkbox.closest('tr').classList.remove('selected');
+        });
+        selectedProcessingRows.clear();
+        updateProcessingSelectionCount();
+    });
+
+    selectAllProcessingCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+            selectAllProcessingBtn.click();
+        } else {
+            deselectAllProcessingBtn.click();
+        }
+    });
+
+    // Cancel functionality
+    cancelSelectedBtn.addEventListener('click', function() {
+        cancelModal.style.display = 'block';
+    });
+
+    bringBackBtn.addEventListener('click', function() {
+        const selectedIndices = Array.from(selectedProcessingRows);
+        const itemsToRestore = selectedIndices.map(index => processingData[index]);
+
+        // Add back to pending topics
+        itemsToRestore.forEach(item => {
+            if (item.fullData) {
+                csvData.push(item.fullData);
+            }
+        });
+
+        // Remove from processing (sort descending to avoid index issues)
+        selectedIndices.sort((a, b) => b - a).forEach(index => {
+            processingData.splice(index, 1);
+        });
+
+        // Clear selection and refresh
+        selectedProcessingRows.clear();
+        populateTable();
+        populateProcessingTable();
+        updateProcessingSelectionCount();
+        saveToLocalStorage();
+
+        cancelModal.style.display = 'none';
+    });
+
+    deletePermanentlyBtn.addEventListener('click', function() {
+        const selectedIndices = Array.from(selectedProcessingRows);
+
+        // Remove from processing (sort descending to avoid index issues)
+        selectedIndices.sort((a, b) => b - a).forEach(index => {
+            processingData.splice(index, 1);
+        });
+
+        // Clear selection and refresh
+        selectedProcessingRows.clear();
+        populateProcessingTable();
+        updateProcessingSelectionCount();
+        saveToLocalStorage();
+
+        cancelModal.style.display = 'none';
+    });
+
+    cancelModalBtn.addEventListener('click', function() {
+        cancelModal.style.display = 'none';
+    });
+
+    // Close modal when clicking outside
+    window.addEventListener('click', function(event) {
+        if (event.target === cancelModal) {
+            cancelModal.style.display = 'none';
+        }
+    });
+
     // Load data from localStorage on page load
     loadFromLocalStorage();
     updateSelectionCount();
+    updateProcessingSelectionCount();
 });

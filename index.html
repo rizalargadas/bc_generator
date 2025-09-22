@@ -18,6 +18,7 @@
         <nav class="tabs">
             <button class="tab-btn active" data-tab="upload">Upload</button>
             <button class="tab-btn" data-tab="pending">Pending Topics</button>
+            <button class="tab-btn" data-tab="processing">Processing</button>
         </nav>
 
         <main>
@@ -45,6 +46,7 @@
                         <div class="action-buttons">
                             <button class="btn-secondary" id="select-all-btn">Select All</button>
                             <button class="btn-secondary" id="deselect-all-btn" style="display: none;">Deselect All</button>
+                            <button class="btn-primary" id="generate-videos-btn" style="display: none;">Generate Videos</button>
                             <button class="btn-danger" id="delete-selected-btn" style="display: none;">Delete Selected</button>
                             <button class="btn-warning" id="clear-storage-btn">Clear Memory</button>
                         </div>
@@ -56,6 +58,7 @@
                                     <th class="checkbox-col">
                                         <input type="checkbox" id="select-all-checkbox">
                                     </th>
+                                    <th>ID</th>
                                     <th>Topic</th>
                                     <th>Info</th>
                                     <th>Schedule</th>
@@ -75,7 +78,64 @@
                     </div>
                 </div>
             </div>
+
+            <div class="tab-content" id="processing-tab">
+                <div class="processing-section">
+                    <div class="processing-header">
+                        <h2>Video Processing Pipeline</h2>
+                        <div class="processing-stats">
+                            <span id="processing-count">0 videos in queue</span>
+                        </div>
+                    </div>
+                    <div class="processing-controls">
+                        <div class="processing-selection-info">
+                            <span id="processing-selection-count">0 items selected</span>
+                        </div>
+                        <div class="processing-action-buttons">
+                            <button class="btn-secondary" id="select-all-processing-btn">Select All</button>
+                            <button class="btn-secondary" id="deselect-all-processing-btn" style="display: none;">Deselect All</button>
+                            <button class="btn-warning" id="cancel-selected-btn" style="display: none;">Cancel Selected</button>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="processing-table">
+                            <thead>
+                                <tr>
+                                    <th class="checkbox-col">
+                                        <input type="checkbox" id="select-all-processing-checkbox">
+                                    </th>
+                                    <th>ID</th>
+                                    <th>Topic</th>
+                                    <th>Script</th>
+                                    <th>Image</th>
+                                    <th>Voice Overs</th>
+                                    <th>Video</th>
+                                    <th>Posting</th>
+                                </tr>
+                            </thead>
+                            <tbody id="processing-tbody">
+                            </tbody>
+                        </table>
+                        <div class="no-data" id="no-processing-data">
+                            No videos in processing queue. Select topics and click "Generate Videos" to start.
+                        </div>
+                    </div>
+                </div>
+            </div>
         </main>
+    </div>
+
+    <!-- Cancel Modal -->
+    <div id="cancel-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>Cancel Processing</h3>
+            <p>What would you like to do with the selected item(s)?</p>
+            <div class="modal-buttons">
+                <button class="btn-primary" id="bring-back-btn">Bring Back to Pending Topics</button>
+                <button class="btn-danger" id="delete-permanently-btn">Delete Permanently</button>
+                <button class="btn-secondary" id="cancel-modal-btn">Cancel</button>
+            </div>
+        </div>
     </div>
 
     <script src="script.js"></script>
