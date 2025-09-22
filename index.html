@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Black Chapter VidGen</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Black Chapter VidGen</h1>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="upload">Upload</button>
+            <button class="tab-btn" data-tab="pending">Pending Topics</button>
+        </nav>
+
+        <main>
+            <div class="tab-content active" id="upload-tab">
+                <div class="upload-section">
+                <input type="file" id="csvFile" accept=".csv" hidden>
+                <button class="upload-btn" onclick="document.getElementById('csvFile').click()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Upload Topics
+                </button>
+                <div class="file-info" id="fileInfo"></div>
+            </div>
+            </div>
+
+            <div class="tab-content" id="pending-tab">
+                <div class="pending-section">
+                    <div class="table-controls">
+                        <div class="selection-info">
+                            <span id="selection-count">0 items selected</span>
+                        </div>
+                        <div class="action-buttons">
+                            <button class="btn-secondary" id="select-all-btn">Select All</button>
+                            <button class="btn-secondary" id="deselect-all-btn" style="display: none;">Deselect All</button>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="topics-table">
+                            <thead>
+                                <tr>
+                                    <th class="checkbox-col">
+                                        <input type="checkbox" id="select-all-checkbox">
+                                    </th>
+                                    <th>Topic</th>
+                                    <th>Info</th>
+                                    <th>Schedule</th>
+                                    <th>Time</th>
+                                    <th>TikTok</th>
+                                    <th>YT Title</th>
+                                    <th>YT Desc</th>
+                                    <th>YT Tags</th>
+                                </tr>
+                            </thead>
+                            <tbody id="topics-tbody">
+                            </tbody>
+                        </table>
+                        <div class="no-data" id="no-data-message">
+                            No topics uploaded yet. Please upload a CSV file to view topics.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
