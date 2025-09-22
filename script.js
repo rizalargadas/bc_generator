@@ -21,6 +21,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const saveApiKeyBtn = document.getElementById('save-api-key');
     const testApiKeyBtn = document.getElementById('test-api-key');
     const apiStatus = document.getElementById('api-status');
+    const elevenlabsApiKeyInput = document.getElementById('elevenlabs-api-key');
+    const saveElevenlabsKeyBtn = document.getElementById('save-elevenlabs-key');
+    const elevenlabsVoiceIdInput = document.getElementById('elevenlabs-voice-id');
+    const saveVoiceIdBtn = document.getElementById('save-voice-id');
+    const elevenlabsStatus = document.getElementById('elevenlabs-status');
+    const lateApiKeyInput = document.getElementById('late-api-key');
+    const saveLateKeyBtn = document.getElementById('save-late-key');
+    const testLateKeyBtn = document.getElementById('test-late-key');
+    const lateStatus = document.getElementById('late-status');
     const selectionCount = document.getElementById('selection-count');
     const selectAllBtn = document.getElementById('select-all-btn');
     const deselectAllBtn = document.getElementById('deselect-all-btn');
@@ -36,6 +45,9 @@ document.addEventListener('DOMContentLoaded', function() {
     let nextProcessingId = 1;
     let usedTopicIds = new Set();
     let openaiApiKey = '';
+    let elevenlabsApiKey = '';
+    let elevenlabsVoiceId = '';
+    let lateApiKey = '';
 
     // ID generation function
     function generateTopicId() {
@@ -249,6 +261,9 @@ Format your response as JSON with this exact structure:
             localStorage.setItem('bc_generator_next_id', nextProcessingId);
             localStorage.setItem('bc_generator_used_ids', JSON.stringify(Array.from(usedTopicIds)));
             localStorage.setItem('bc_generator_openai_key', openaiApiKey);
+            localStorage.setItem('bc_generator_elevenlabs_key', elevenlabsApiKey);
+            localStorage.setItem('bc_generator_elevenlabs_voice_id', elevenlabsVoiceId);
+            localStorage.setItem('bc_generator_late_key', lateApiKey);
             localStorage.setItem('bc_generator_timestamp', new Date().toISOString());
         } catch (e) {
             console.warn('Could not save to localStorage:', e);
@@ -308,6 +323,26 @@ Format your response as JSON with this exact structure:
                 openaiApiKeyInput.value = savedApiKey;
                 updateApiStatus('saved');
             }
+
+            const savedElevenlabsKey = localStorage.getItem('bc_generator_elevenlabs_key');
+            if (savedElevenlabsKey) {
+                elevenlabsApiKey = savedElevenlabsKey;
+                elevenlabsApiKeyInput.value = savedElevenlabsKey;
+                updateElevenlabsStatus('saved');
+            }
+
+            const savedVoiceId = localStorage.getItem('bc_generator_elevenlabs_voice_id');
+            if (savedVoiceId) {
+                elevenlabsVoiceId = savedVoiceId;
+                elevenlabsVoiceIdInput.value = savedVoiceId;
+            }
+
+            const savedLateKey = localStorage.getItem('bc_generator_late_key');
+            if (savedLateKey) {
+                lateApiKey = savedLateKey;
+                lateApiKeyInput.value = savedLateKey;
+                updateLateStatus('saved');
+            }
         } catch (e) {
             console.warn('Could not load from localStorage:', e);
         }
@@ -315,8 +350,11 @@ Format your response as JSON with this exact structure:
 
     function clearLocalStorage() {
         try {
-            // Preserve API key before clearing
+            // Preserve API keys before clearing
             const apiKey = localStorage.getItem('bc_generator_openai_key');
+            const elevenlabsKey = localStorage.getItem('bc_generator_elevenlabs_key');
+            const voiceId = localStorage.getItem('bc_generator_elevenlabs_voice_id');
+            const lateKey = localStorage.getItem('bc_generator_late_key');
 
             localStorage.removeItem('bc_generator_data');
             localStorage.removeItem('bc_generator_processing');
@@ -324,9 +362,18 @@ Format your response as JSON with this exact structure:
             localStorage.removeItem('bc_generator_used_ids');
             localStorage.removeItem('bc_generator_timestamp');
 
-            // Restore API key if it existed
+            // Restore API keys if they existed
             if (apiKey) {
                 localStorage.setItem('bc_generator_openai_key', apiKey);
+            }
+            if (elevenlabsKey) {
+                localStorage.setItem('bc_generator_elevenlabs_key', elevenlabsKey);
+            }
+            if (voiceId) {
+                localStorage.setItem('bc_generator_elevenlabs_voice_id', voiceId);
+            }
+            if (lateKey) {
+                localStorage.setItem('bc_generator_late_key', lateKey);
             }
         } catch (e) {
             console.warn('Could not clear localStorage:', e);
@@ -358,6 +405,48 @@ Format your response as JSON with this exact structure:
                 statusText.textContent = 'No API key configured';
                 statusText.style.color = '#666666';
                 testApiKeyBtn.style.display = 'none';
+        }
+    }
+
+    function updateElevenlabsStatus(status) {
+        const statusText = elevenlabsStatus.querySelector('.status-text');
+
+        switch (status) {
+            case 'saved':
+                statusText.textContent = 'ElevenLabs API key saved and ready';
+                statusText.style.color = '#008000';
+                break;
+            default:
+                statusText.textContent = 'No ElevenLabs API key configured';
+                statusText.style.color = '#666666';
+        }
+    }
+
+    function updateLateStatus(status) {
+        const statusText = lateStatus.querySelector('.status-text');
+
+        switch (status) {
+            case 'saved':
+                statusText.textContent = 'Late API key saved and ready';
+                statusText.style.color = '#008000';
+                testLateKeyBtn.style.display = 'inline-block';
+                break;
+            case 'testing':
+                statusText.textContent = 'Testing Late connection...';
+                statusText.style.color = '#ff8800';
+                break;
+            case 'success':
+                statusText.textContent = 'Late connection successful!';
+                statusText.style.color = '#008000';
+                break;
+            case 'error':
+                statusText.textContent = 'Late connection failed - check your API key';
+                statusText.style.color = '#cc0000';
+                break;
+            default:
+                statusText.textContent = 'No Late API key configured';
+                statusText.style.color = '#666666';
+                testLateKeyBtn.style.display = 'none';
         }
     }
 
@@ -1101,6 +1190,54 @@ Format your response as JSON with this exact structure:
             }
         } catch (error) {
             updateApiStatus('error');
+        }
+    });
+
+    // ElevenLabs API Management
+    saveElevenlabsKeyBtn.addEventListener('click', function() {
+        const apiKey = elevenlabsApiKeyInput.value.trim();
+        if (apiKey) {
+            elevenlabsApiKey = apiKey;
+            saveToLocalStorage();
+            updateElevenlabsStatus('saved');
+        }
+    });
+
+
+    saveVoiceIdBtn.addEventListener('click', function() {
+        const voiceId = elevenlabsVoiceIdInput.value.trim();
+        if (voiceId) {
+            elevenlabsVoiceId = voiceId;
+            saveToLocalStorage();
+        }
+    });
+
+    // Late API Management
+    saveLateKeyBtn.addEventListener('click', function() {
+        const apiKey = lateApiKeyInput.value.trim();
+        if (apiKey) {
+            lateApiKey = apiKey;
+            saveToLocalStorage();
+            updateLateStatus('saved');
+        }
+    });
+
+    testLateKeyBtn.addEventListener('click', async function() {
+        updateLateStatus('testing');
+        try {
+            const response = await fetch('https://getlate.dev/api/v1/usage-stats', {
+                headers: {
+                    'Authorization': `Bearer ${lateApiKey}`
+                }
+            });
+
+            if (response.ok) {
+                updateLateStatus('success');
+            } else {
+                updateLateStatus('error');
+            }
+        } catch (error) {
+            updateLateStatus('error');
         }
     });
 

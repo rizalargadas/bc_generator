@@ -9,7 +9,8 @@
       "Bash(npm init:*)",
       "Bash(npm install:*)",
       "Bash(npm start)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []
