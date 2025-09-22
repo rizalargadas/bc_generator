@@ -17,6 +17,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const bringBackBtn = document.getElementById('bring-back-btn');
     const deletePermanentlyBtn = document.getElementById('delete-permanently-btn');
     const cancelModalBtn = document.getElementById('cancel-modal-btn');
+    const openaiApiKeyInput = document.getElementById('openai-api-key');
+    const saveApiKeyBtn = document.getElementById('save-api-key');
+    const testApiKeyBtn = document.getElementById('test-api-key');
+    const apiStatus = document.getElementById('api-status');
     const selectionCount = document.getElementById('selection-count');
     const selectAllBtn = document.getElementById('select-all-btn');
     const deselectAllBtn = document.getElementById('deselect-all-btn');
@@ -31,6 +35,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let selectedProcessingRows = new Set();
     let nextProcessingId = 1;
     let usedTopicIds = new Set();
+    let openaiApiKey = '';
 
     // ID generation function
     function generateTopicId() {
@@ -47,6 +52,195 @@ document.addEventListener('DOMContentLoaded', function() {
         return id;
     }
 
+    // OpenAI Script Generation
+    async function generateScript(topic, info) {
+        if (!openaiApiKey) {
+            throw new Error('OpenAI API key not configured');
+        }
+
+        const prompt = `You are an award-winning narrative architect and YouTube strategy expert specializing in faceless, AI-narrated, content (True Crime, Dark History, Mysteries, Creepy Happenings) that maximizes audience retention and growth. You craft meticulously-researched, vividly-told scripts that create an eerie yet factual journey into humanity's darkest chapters.
+
+Write an immersive, narrative-driven YouTube script on:
+📌 TOPIC: ${topic}
+
+Short Info About the Topic: ${info}
+
+Write a full script first as a numbered list of at least 10 distinct scenes, each with a title and target word count to collectively total ~1200 words. Use suspenseful but calm, authoritative language to build curiosity and maintain an unsettling yet factual tone. After presenting the outline,
+
+Full script should conclude with the specified haunting/hooky outro line/scene. Stay strictly within verified facts and note if the topic warrants a multi-part series. Your goal: craft an unforgettable, cinematic narrative experience that keeps viewers watching to the end — and eager for the next dark chapter.
+
+For each scene's image prompt, ensure they are:
+– Written in clear, descriptive English
+– Appropriate for OpenAI/DALL-E and compliant with their community standards
+– Visually accurate and aligned with the events and atmosphere of the script
+– Consistent in describing any recurring or prominent characters (describe their age, gender, clothing, and other distinctive features clearly and use the same description throughout all scenes where they appear)
+– Include the mood, time of day, setting, and any relevant props or details to make the image atmospheric and relevant to the story
+
+Format your response as JSON with this exact structure:
+{
+  "scenes": [
+    {
+      "scene_number": 1,
+      "title": "Scene Title",
+      "script": "The full script text for this scene...",
+      "image_prompt": "Detailed image generation prompt for this scene"
+    }
+  ]
+}`;
+
+        try {
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${openaiApiKey}`
+                },
+                body: JSON.stringify({
+                    model: 'gpt-4',
+                    messages: [
+                        {
+                            role: 'user',
+                            content: prompt
+                        }
+                    ],
+                    max_tokens: 4000,
+                    temperature: 0.7
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            const content = data.choices[0].message.content;
+
+            // Try to parse as JSON, fallback to text parsing if needed
+            try {
+                return JSON.parse(content);
+            } catch (parseError) {
+                // Fallback: parse text response
+                return parseTextScript(content);
+            }
+        } catch (error) {
+            console.error('Error generating script:', error);
+            throw error;
+        }
+    }
+
+    function parseTextScript(text) {
+        // Fallback parser for non-JSON responses
+        const scenes = [];
+        const lines = text.split('\n');
+        let currentScene = null;
+        let sceneNumber = 1;
+
+        lines.forEach(line => {
+            line = line.trim();
+            if (line.match(/^\d+\./)) {
+                if (currentScene) {
+                    scenes.push(currentScene);
+                }
+                currentScene = {
+                    scene_number: sceneNumber++,
+                    title: line.replace(/^\d+\./, '').trim(),
+                    script: '',
+                    image_prompt: `Dark, atmospheric scene for: ${line.replace(/^\d+\./, '').trim()}`
+                };
+            } else if (currentScene && line) {
+                currentScene.script += line + ' ';
+            }
+        });
+
+        if (currentScene) {
+            scenes.push(currentScene);
+        }
+
+        return { scenes };
+    }
+
+    async function generateCSV(topic, topicId, scriptData) {
+        const headers = ['Scene #', 'Script for Voice Over', 'Image Generation Prompt'];
+        const rows = [headers];
+
+        scriptData.scenes.forEach(scene => {
+            rows.push([
+                scene.scene_number,
+                scene.script.trim(),
+                scene.image_prompt
+            ]);
+        });
+
+        const csvContent = rows.map(row =>
+            row.map(cell => `"${cell.toString().replace(/"/g, '""')}"`).join(',')
+        ).join('\n');
+
+        // Save file directly to scripts folder (Electron) or download (Web)
+        const filename = `${topicId}_${topic.replace(/[^a-zA-Z0-9]/g, '_')}.csv`;
+
+        // Check if running in Electron
+        if (typeof require !== 'undefined') {
+            // Electron: Save directly to scripts folder
+            try {
+                const { ipcRenderer } = require('electron');
+                const result = await ipcRenderer.invoke('save-csv-file', {
+                    filename: filename,
+                    content: csvContent
+                });
+
+                if (result.success) {
+                    console.log(`File saved to: ${result.filePath}`);
+                } else {
+                    console.error('Failed to save file:', result.error);
+                    alert(`Failed to save file: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error saving file:', error);
+                alert(`Error saving file: ${error.message}`);
+            }
+        } else {
+            // Web: Download file
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', `scripts/${filename}`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+
+        return filename;
+    }
+
+    async function processScriptGeneration(processingItem, index) {
+        try {
+            // Update status to writing
+            processingItem.script = 'writing...';
+            populateProcessingTable();
+
+            const scriptData = await generateScript(processingItem.topic, processingItem.fullData.Info);
+            const filename = await generateCSV(processingItem.topic, processingItem.id, scriptData);
+
+            // Update status to done
+            processingItem.script = 'done';
+            processingItem.scriptFile = filename;
+            populateProcessingTable();
+            saveToLocalStorage();
+
+            console.log(`Script generated for ${processingItem.topic}: ${filename}`);
+        } catch (error) {
+            console.error('Script generation failed:', error);
+            processingItem.script = 'failed';
+            populateProcessingTable();
+            alert(`Script generation failed for "${processingItem.topic}": ${error.message}`);
+        }
+    }
+
     // LocalStorage functions
     function saveToLocalStorage() {
         try {
@@ -54,6 +248,7 @@ document.addEventListener('DOMContentLoaded', function() {
             localStorage.setItem('bc_generator_processing', JSON.stringify(processingData));
             localStorage.setItem('bc_generator_next_id', nextProcessingId);
             localStorage.setItem('bc_generator_used_ids', JSON.stringify(Array.from(usedTopicIds)));
+            localStorage.setItem('bc_generator_openai_key', openaiApiKey);
             localStorage.setItem('bc_generator_timestamp', new Date().toISOString());
         } catch (e) {
             console.warn('Could not save to localStorage:', e);
@@ -106,6 +301,13 @@ document.addEventListener('DOMContentLoaded', function() {
             if (savedUsedIds) {
                 usedTopicIds = new Set(JSON.parse(savedUsedIds));
             }
+
+            const savedApiKey = localStorage.getItem('bc_generator_openai_key');
+            if (savedApiKey) {
+                openaiApiKey = savedApiKey;
+                openaiApiKeyInput.value = savedApiKey;
+                updateApiStatus('saved');
+            }
         } catch (e) {
             console.warn('Could not load from localStorage:', e);
         }
@@ -113,13 +315,49 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function clearLocalStorage() {
         try {
+            // Preserve API key before clearing
+            const apiKey = localStorage.getItem('bc_generator_openai_key');
+
             localStorage.removeItem('bc_generator_data');
             localStorage.removeItem('bc_generator_processing');
             localStorage.removeItem('bc_generator_next_id');
             localStorage.removeItem('bc_generator_used_ids');
             localStorage.removeItem('bc_generator_timestamp');
+
+            // Restore API key if it existed
+            if (apiKey) {
+                localStorage.setItem('bc_generator_openai_key', apiKey);
+            }
         } catch (e) {
             console.warn('Could not clear localStorage:', e);
+        }
+    }
+
+    function updateApiStatus(status) {
+        const statusText = apiStatus.querySelector('.status-text');
+
+        switch (status) {
+            case 'saved':
+                statusText.textContent = 'API key saved and ready';
+                statusText.style.color = '#008000';
+                testApiKeyBtn.style.display = 'inline-block';
+                break;
+            case 'testing':
+                statusText.textContent = 'Testing connection...';
+                statusText.style.color = '#ff8800';
+                break;
+            case 'success':
+                statusText.textContent = 'Connection successful!';
+                statusText.style.color = '#008000';
+                break;
+            case 'error':
+                statusText.textContent = 'Connection failed - check your API key';
+                statusText.style.color = '#cc0000';
+                break;
+            default:
+                statusText.textContent = 'No API key configured';
+                statusText.style.color = '#666666';
+                testApiKeyBtn.style.display = 'none';
         }
     }
 
@@ -192,7 +430,14 @@ document.addEventListener('DOMContentLoaded', function() {
             tr.appendChild(topicTd);
 
             const scriptTd = document.createElement('td');
-            scriptTd.innerHTML = `<span class="status ${getStatusClass(item.script)}">${item.script}</span>`;
+            if (item.script === 'waiting...' && openaiApiKey) {
+                scriptTd.innerHTML = `
+                    <span class="status ${getStatusClass(item.script)}">${item.script}</span>
+                    <button class="btn-mini" onclick="generateScriptForItem(${index})">Generate</button>
+                `;
+            } else {
+                scriptTd.innerHTML = `<span class="status ${getStatusClass(item.script)}">${item.script}</span>`;
+            }
             tr.appendChild(scriptTd);
 
             const imageTd = document.createElement('td');
@@ -704,6 +949,12 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('processing-tab').classList.add('active');
 
         console.log(`Moved ${count} topics to processing queue:`, selectedTopics);
+
+        // Automatically start script generation for all newly added items
+        const startIndex = processingData.length - selectedTopics.length;
+        for (let i = startIndex; i < processingData.length; i++) {
+            processScriptGeneration(processingData[i], i);
+        }
     });
 
     clearStorageBtn.addEventListener('click', function() {
@@ -822,6 +1073,43 @@ document.addEventListener('DOMContentLoaded', function() {
             cancelModal.style.display = 'none';
         }
     });
+
+    // API Key Management
+    saveApiKeyBtn.addEventListener('click', function() {
+        const apiKey = openaiApiKeyInput.value.trim();
+        if (apiKey) {
+            openaiApiKey = apiKey;
+            saveToLocalStorage();
+            updateApiStatus('saved');
+            populateProcessingTable(); // Refresh to show Generate buttons
+        }
+    });
+
+    testApiKeyBtn.addEventListener('click', async function() {
+        updateApiStatus('testing');
+        try {
+            const response = await fetch('https://api.openai.com/v1/models', {
+                headers: {
+                    'Authorization': `Bearer ${openaiApiKey}`
+                }
+            });
+
+            if (response.ok) {
+                updateApiStatus('success');
+            } else {
+                updateApiStatus('error');
+            }
+        } catch (error) {
+            updateApiStatus('error');
+        }
+    });
+
+    // Global function for inline script generation
+    window.generateScriptForItem = async function(index) {
+        if (index >= 0 && index < processingData.length) {
+            await processScriptGeneration(processingData[index], index);
+        }
+    };
 
     // Load data from localStorage on page load
     loadFromLocalStorage();

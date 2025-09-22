@@ -19,6 +19,7 @@
             <button class="tab-btn active" data-tab="upload">Upload</button>
             <button class="tab-btn" data-tab="pending">Pending Topics</button>
             <button class="tab-btn" data-tab="processing">Processing</button>
+            <button class="tab-btn" data-tab="settings">Settings</button>
         </nav>
 
         <main>
@@ -118,6 +119,36 @@
                         </table>
                         <div class="no-data" id="no-processing-data">
                             No videos in processing queue. Select topics and click "Generate Videos" to start.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="settings-tab">
+                <div class="settings-section">
+                    <div class="settings-header">
+                        <h2>API Configuration</h2>
+                    </div>
+                    <div class="settings-form">
+                        <div class="form-group">
+                            <label for="openai-api-key">OpenAI API Key:</label>
+                            <input type="password" id="openai-api-key" placeholder="sk-proj-..." class="api-input">
+                            <button class="btn-secondary" id="save-api-key">Save Key</button>
+                            <button class="btn-secondary" id="test-api-key" style="display: none;">Test Connection</button>
+                        </div>
+                        <div class="api-status" id="api-status">
+                            <span class="status-text">No API key configured</span>
+                        </div>
+                        <div class="settings-info">
+                            <h3>How to get your OpenAI API Key:</h3>
+                            <ol>
+                                <li>Visit <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI API Keys</a></li>
+                                <li>Sign in to your OpenAI account</li>
+                                <li>Click "Create new secret key"</li>
+                                <li>Copy the key and paste it above</li>
+                                <li>Make sure you have credits in your OpenAI account</li>
+                            </ol>
+                            <p><strong>Note:</strong> Your API key is stored locally in your browser and never sent to our servers.</p>
                         </div>
                     </div>
                 </div>

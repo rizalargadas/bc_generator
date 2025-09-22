@@ -599,3 +599,121 @@ main {
 .modal-buttons button {
     min-width: 120px;
 }
+
+.settings-section {
+    background: var(--bg-secondary);
+    border-radius: 20px;
+    padding: 30px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.settings-header {
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.settings-header h2 {
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: 24px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.api-input {
+    width: 100%;
+    max-width: 400px;
+    padding: 12px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: 14px;
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+
+.api-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.api-status {
+    margin: 15px 0;
+    padding: 12px;
+    border-radius: 8px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+}
+
+.settings-info {
+    margin-top: 30px;
+    padding: 20px;
+    background: var(--bg-primary);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+}
+
+.settings-info h3 {
+    margin: 0 0 15px 0;
+    color: var(--text-primary);
+    font-size: 16px;
+}
+
+.settings-info ol {
+    margin: 15px 0;
+    padding-left: 20px;
+}
+
+.settings-info li {
+    margin: 8px 0;
+    line-height: 1.5;
+}
+
+.settings-info a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.settings-info a:hover {
+    text-decoration: underline;
+}
+
+.btn-mini {
+    padding: 4px 8px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    cursor: pointer;
+    margin-left: 8px;
+    transition: all 0.2s ease;
+}
+
+.btn-mini:hover {
+    background: #333333;
+    transform: translateY(-1px);
+}
+
+.status-failed {
+    background: #ff6b6b;
+    color: white;
+    border: 1px solid #ff5252;
+}
