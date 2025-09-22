@@ -8,10 +8,58 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectionCount = document.getElementById('selection-count');
     const selectAllBtn = document.getElementById('select-all-btn');
     const deselectAllBtn = document.getElementById('deselect-all-btn');
+    const deleteSelectedBtn = document.getElementById('delete-selected-btn');
+    const clearStorageBtn = document.getElementById('clear-storage-btn');
     const selectAllCheckbox = document.getElementById('select-all-checkbox');
 
     let csvData = [];
     let selectedRows = new Set();
+
+    // LocalStorage functions
+    function saveToLocalStorage() {
+        try {
+            localStorage.setItem('bc_generator_data', JSON.stringify(csvData));
+            localStorage.setItem('bc_generator_timestamp', new Date().toISOString());
+        } catch (e) {
+            console.warn('Could not save to localStorage:', e);
+        }
+    }
+
+    function loadFromLocalStorage() {
+        try {
+            const savedData = localStorage.getItem('bc_generator_data');
+            const timestamp = localStorage.getItem('bc_generator_timestamp');
+
+            if (savedData) {
+                csvData = JSON.parse(savedData);
+                if (csvData.length > 0) {
+                    populateTable();
+
+                    // Show info about loaded data
+                    const savedDate = new Date(timestamp).toLocaleString();
+                    fileInfo.innerHTML = `
+                        <div style="text-align: left;">
+                            <span style="color: #0066cc; font-weight: bold;">LOADED FROM MEMORY</span><br>
+                            <span style="color: var(--text-primary);">Last saved: ${savedDate}</span><br>
+                            <span style="color: var(--text-secondary);">Topics: ${csvData.length} rows</span>
+                        </div>
+                    `;
+                    fileInfo.classList.add('show');
+                }
+            }
+        } catch (e) {
+            console.warn('Could not load from localStorage:', e);
+        }
+    }
+
+    function clearLocalStorage() {
+        try {
+            localStorage.removeItem('bc_generator_data');
+            localStorage.removeItem('bc_generator_timestamp');
+        } catch (e) {
+            console.warn('Could not clear localStorage:', e);
+        }
+    }
 
     const requiredColumns = [
         'Topic',
@@ -221,6 +269,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             inputWrapper.innerHTML = '';
                             const newCellContent = createCellContent(newValue, column);
                             inputWrapper.appendChild(newCellContent);
+
+                            // Save to localStorage
+                            saveToLocalStorage();
                         });
 
                         input.addEventListener('blur', function() {
@@ -251,6 +302,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     editableDiv.addEventListener('blur', function() {
                         const newValue = this.innerText.trim();
                         csvData[index][column] = newValue;
+                        // Save to localStorage
+                        saveToLocalStorage();
                     });
 
                     editableDiv.addEventListener('keydown', function(e) {
@@ -287,6 +340,13 @@ document.addEventListener('DOMContentLoaded', function() {
             selectAllBtn.style.display = 'inline-block';
             deselectAllBtn.style.display = 'none';
         }
+
+        // Show/hide delete button based on selection
+        if (count > 0) {
+            deleteSelectedBtn.style.display = 'inline-block';
+        } else {
+            deleteSelectedBtn.style.display = 'none';
+        }
     }
 
     selectAllBtn.addEventListener('click', function() {
@@ -314,6 +374,29 @@ document.addEventListener('DOMContentLoaded', function() {
             selectAllBtn.click();
         } else {
             deselectAllBtn.click();
+        }
+    });
+
+    deleteSelectedBtn.addEventListener('click', function() {
+        const count = selectedRows.size;
+        const confirmMessage = `Are you sure you want to delete ${count} selected topic${count !== 1 ? 's' : ''}? This action cannot be undone.`;
+
+        if (confirm(confirmMessage)) {
+            // Convert selectedRows Set to sorted array (highest index first)
+            const indicesToDelete = Array.from(selectedRows).sort((a, b) => b - a);
+
+            // Remove rows from csvData (starting from highest index to avoid index shifting)
+            indicesToDelete.forEach(index => {
+                csvData.splice(index, 1);
+            });
+
+            // Clear selection and refresh table
+            selectedRows.clear();
+            populateTable();
+            updateSelectionCount();
+
+            // Save to localStorage
+            saveToLocalStorage();
         }
     });
 
@@ -377,6 +460,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 selectedRows.clear();
                 updateSelectionCount();
 
+                // Save to localStorage
+                saveToLocalStorage();
+
                 console.log('CSV validated successfully:', {
                     headers: headers,
                     rowCount: rowCount,
@@ -387,5 +473,32 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    clearStorageBtn.addEventListener('click', function() {
+        const confirmMessage = 'Are you sure you want to clear all saved data from memory? This will remove all topics and cannot be undone.';
+
+        if (confirm(confirmMessage)) {
+            clearLocalStorage();
+            csvData = [];
+            selectedRows.clear();
+            populateTable();
+            updateSelectionCount();
+
+            fileInfo.innerHTML = `
+                <div style="text-align: center;">
+                    <span style="color: #ff8800; font-weight: bold;">MEMORY CLEARED</span><br>
+                    <span style="color: var(--text-secondary);">All saved data has been removed</span>
+                </div>
+            `;
+            fileInfo.classList.add('show');
+
+            // Hide the message after 3 seconds
+            setTimeout(() => {
+                fileInfo.classList.remove('show');
+            }, 3000);
+        }
+    });
+
+    // Load data from localStorage on page load
+    loadFromLocalStorage();
     updateSelectionCount();
 });

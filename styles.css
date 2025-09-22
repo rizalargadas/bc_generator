@@ -215,6 +215,46 @@ main {
     color: white;
 }
 
+.btn-danger {
+    padding: 8px 16px;
+    background: white;
+    border: 2px solid #cc0000;
+    border-radius: 8px;
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: #cc0000;
+}
+
+.btn-danger:hover {
+    background: #cc0000;
+    color: white;
+}
+
+.btn-warning {
+    padding: 8px 16px;
+    background: white;
+    border: 2px solid #ff8800;
+    border-radius: 8px;
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: #ff8800;
+}
+
+.btn-warning:hover {
+    background: #ff8800;
+    color: white;
+}
+
 .table-wrapper {
     overflow-x: auto;
     position: relative;
