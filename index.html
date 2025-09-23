@@ -98,6 +98,8 @@
                         <div class="processing-action-buttons">
                             <button class="btn-secondary" id="select-all-processing-btn">Select All</button>
                             <button class="btn-secondary" id="deselect-all-processing-btn" style="display: none;">Deselect All</button>
+                            <button class="btn-warning" id="pause-selected-btn" style="display: none;">Pause Selected</button>
+                            <button class="btn-primary" id="continue-selected-btn" style="display: none;">Continue Selected</button>
                             <button class="btn-warning" id="cancel-selected-btn" style="display: none;">Cancel Selected</button>
                         </div>
                     </div>
@@ -115,6 +117,7 @@
                                     <th>Voice Overs</th>
                                     <th>Video</th>
                                     <th>Posting</th>
+                                    <th>Folder</th>
                                 </tr>
                             </thead>
                             <tbody id="processing-tbody">
@@ -153,6 +156,17 @@
                             <input type="text" id="elevenlabs-voice-id" placeholder="21m00Tcm4TlvDq8ikWAM" class="api-input">
                             <button class="btn-secondary" id="save-voice-id">Save Voice ID</button>
                         </div>
+                        <div class="form-group">
+                            <label for="test-voice-input">Test Voice Generation:</label>
+                            <input type="text" id="test-voice-input" placeholder="In the shadowy depths of an abandoned asylum..." class="api-input">
+                            <button class="btn-primary" id="test-voice-btn" style="display: none;">Generate Test Voice</button>
+                        </div>
+                        <div id="test-voice-result" style="margin-top: 10px; display: none;">
+                            <div id="test-voice-status" style="margin-bottom: 10px;"></div>
+                            <audio id="test-audio" controls style="width: 100%; max-width: 400px;">
+                                Your browser does not support the audio element.
+                            </audio>
+                        </div>
                         <div class="api-status" id="elevenlabs-status">
                             <span class="status-text">No ElevenLabs API key configured</span>
                         </div>
@@ -179,6 +193,7 @@
                                 <option value="b24e16ff-06e3-43eb-8d33-4416c2d75876">Leonardo Lightning XL</option>
                                 <option value="aa77f04e-3eec-4034-9c07-d0f619684628">Leonardo Kino XL</option>
                                 <option value="5c232a9e-9061-4777-980a-ddc8e65647c6">Leonardo Vision XL</option>
+                                <option value="05ce0082-2d80-4a2d-8653-4d1c85e2418e">Lucid Realism</option>
                                 <option value="e316348f-7773-490e-adcd-46757c738eb7">Absolute Reality v1.6</option>
                                 <option value="ac614f96-1082-45bf-be9d-757f2d31c174">DreamShaper v7</option>
                             </select>

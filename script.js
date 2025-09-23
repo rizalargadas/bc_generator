@@ -11,6 +11,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const processingSelectionCount = document.getElementById('processing-selection-count');
     const selectAllProcessingBtn = document.getElementById('select-all-processing-btn');
     const deselectAllProcessingBtn = document.getElementById('deselect-all-processing-btn');
+    const pauseSelectedBtn = document.getElementById('pause-selected-btn');
+    const continueSelectedBtn = document.getElementById('continue-selected-btn');
     const cancelSelectedBtn = document.getElementById('cancel-selected-btn');
     const selectAllProcessingCheckbox = document.getElementById('select-all-processing-checkbox');
     const cancelModal = document.getElementById('cancel-modal');
@@ -39,6 +41,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const testImageResult = document.getElementById('test-image-result');
     const testStatus = document.getElementById('test-status');
     const testImage = document.getElementById('test-image');
+    const testVoiceInput = document.getElementById('test-voice-input');
+    const testVoiceBtn = document.getElementById('test-voice-btn');
+    const testVoiceResult = document.getElementById('test-voice-result');
+    const testVoiceStatus = document.getElementById('test-voice-status');
+    const testAudio = document.getElementById('test-audio');
     const leonardoStatus = document.getElementById('leonardo-status');
     const selectionCount = document.getElementById('selection-count');
     const selectAllBtn = document.getElementById('select-all-btn');
@@ -52,6 +59,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let selectedRows = new Set();
     let processingData = [];
     let selectedProcessingRows = new Set();
+    let pausedItems = new Set(); // Track paused processing items
     let nextProcessingId = 1;
     let usedTopicIds = new Set();
     let openaiApiKey = '';
@@ -140,14 +148,108 @@ document.addEventListener('DOMContentLoaded', function() {
         return id;
     }
 
+    // Convert Long script to Shorts script
+    async function convertLongToShorts(longScriptData, topic, info) {
+        if (!openaiApiKey) {
+            throw new Error('OpenAI API key not configured');
+        }
+
+        console.log(`Converting Long script to Shorts for: ${topic}`);
+
+        const prompt = `You are an expert YouTube Shorts adapter specializing in converting long-form content into engaging, fast-paced short videos.
+
+Convert this long-form script into a YouTube Shorts version while maintaining the same scene structure and key narrative elements.
+
+ORIGINAL LONG SCRIPT:
+${longScriptData}
+
+CONVERSION REQUIREMENTS:
+- Keep the EXACT SAME number of scenes as the original
+- Maintain the same scene structure and image descriptions
+- Condense the narration to be punchy, fast-paced, and hook-driven
+- Target 400-500 words total
+- Keep the most compelling, dramatic moments
+- Use short, impactful sentences perfect for Shorts format
+- Maintain the dark, mysterious tone but make it more urgent
+- Keep all scene numbers and image descriptions identical
+
+Return the converted script in the exact same CSV format:
+Scene,Narration,Image Description
+
+The scenes should match the original scene numbers but with shortened, more dynamic narration suitable for Shorts.`;
+
+        try {
+            console.log('🤖 Calling OpenAI API for Shorts conversion...');
+            console.log(`📊 Prompt length: ${prompt.length} characters`);
+            console.log(`🔑 API Key configured: ${openaiApiKey ? 'Yes' : 'No'}`);
+
+            const requestBody = {
+                model: 'gpt-4',
+                messages: [{ role: 'user', content: prompt }],
+                max_tokens: 2000,
+                temperature: 0.8
+            };
+
+            console.log('📤 Sending request to OpenAI...');
+
+            // Add timeout to prevent hanging
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('OpenAI request timeout after 60 seconds')), 60000);
+            });
+
+            const fetchPromise = fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${openaiApiKey}`
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            const response = await Promise.race([fetchPromise, timeoutPromise]);
+
+            console.log(`📥 OpenAI response status: ${response.status}`);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`❌ OpenAI API error details: ${errorText}`);
+                throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+            }
+
+            console.log('📝 Parsing OpenAI response...');
+            const data = await response.json();
+
+            if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                console.error('❌ Invalid OpenAI response structure:', data);
+                throw new Error('Invalid response from OpenAI API');
+            }
+
+            const shortsScript = data.choices[0].message.content.trim();
+            console.log(`✅ Shorts script conversion completed, result length: ${shortsScript.length} characters`);
+            console.log(`📋 First 200 chars: ${shortsScript.substring(0, 200)}...`);
+
+            return shortsScript;
+
+        } catch (error) {
+            console.error('Error converting to Shorts:', error);
+            throw error;
+        }
+    }
+
     // OpenAI Script Generation
     async function generateScript(topic, info, ytType = 'Long') {
         if (!openaiApiKey) {
             throw new Error('OpenAI API key not configured');
         }
 
+        // Check if this item is paused
+        const topicId = topic.replace(/[^a-zA-Z0-9]/g, '_') + (ytType === 'Shorts' ? '_S' : '_L');
+        if (pausedItems.has(topicId)) {
+            throw new Error('Script generation paused by user');
+        }
+
         const isShort = ytType === 'Shorts';
-        const targetWords = isShort ? 400 : 1200;
+        const targetWords = isShort ? 400 : 6000;  // Long videos now 6000 words
         const sceneCount = isShort ? 4 : 10;
 
         const prompt = `You are an award-winning narrative architect and YouTube strategy expert specializing in faceless, AI-narrated, content (True Crime, Dark History, Mysteries, Creepy Happenings) that maximizes audience retention and growth. You craft meticulously-researched, vividly-told scripts that create an eerie yet factual journey into humanity's darkest chapters.
@@ -285,7 +387,11 @@ Format your response as JSON with this exact structure:
         });
 
         const csvContent = rows.map(row =>
-            row.map(cell => `"${cell.toString().replace(/"/g, '""')}"`).join(',')
+            row.map(cell => {
+                // Safety check for undefined/null values
+                const cellValue = (cell !== undefined && cell !== null) ? cell.toString() : '';
+                return `"${cellValue.replace(/"/g, '""')}"`;
+            }).join(',')
         ).join('\n');
 
         // Check if running in Electron
@@ -335,6 +441,189 @@ Format your response as JSON with this exact structure:
         }
     }
 
+    // Generate voice overs using ElevenLabs API
+    async function generateVoiceOvers(processingItem, retryOnly = false) {
+        if (!elevenlabsApiKey) {
+            throw new Error('ElevenLabs API key not configured');
+        }
+
+        if (!elevenlabsVoiceId) {
+            throw new Error('ElevenLabs Voice ID not configured');
+        }
+
+        // Check if this item is paused
+        if (pausedItems.has(processingItem.id)) {
+            throw new Error('Voice generation paused by user');
+        }
+
+        if (!processingItem.outputDir) {
+            throw new Error('Output directory not found');
+        }
+
+        console.log(`🎤 Starting voice generation for: ${processingItem.topic}`);
+        console.log(`🔍 Voice generation called with retryOnly: ${retryOnly}`);
+        console.log(`📂 Processing item details:`, {
+            id: processingItem.id,
+            topic: processingItem.topic,
+            ytType: processingItem.ytType,
+            outputDir: processingItem.outputDir,
+            totalScenes: processingItem.totalScenes
+        });
+
+        try {
+            // Read the CSV file to get script content
+            const { ipcRenderer } = require('electron');
+            const csvResult = await ipcRenderer.invoke('read-csv-file', {
+                outputDir: processingItem.outputDir,
+                topicId: processingItem.id
+            });
+
+            if (!csvResult.success) {
+                throw new Error(`Could not read script: ${csvResult.error}`);
+            }
+
+            console.log(`📄 CSV file read successfully, length: ${csvResult.content.length} characters`);
+            const scenes = parseCSVContent(csvResult.content);
+            console.log(`📝 Found ${scenes.length} scenes to generate voice for`);
+
+            // Log first scene as example
+            if (scenes.length > 0) {
+                console.log(`📋 First scene preview:`, {
+                    sceneNumber: scenes[0].sceneNumber,
+                    scriptLength: scenes[0].script?.length || 0,
+                    scriptPreview: scenes[0].script?.substring(0, 100) + '...',
+                    imagePrompt: scenes[0].imagePrompt?.substring(0, 50) + '...'
+                });
+            }
+
+            // Check which audio files already exist if retrying
+            let existingAudioNumbers = [];
+            let existingCount = 0;
+
+            if (retryOnly) {
+                const statusResult = await ipcRenderer.invoke('check-processing-status', {
+                    outputDir: processingItem.outputDir,
+                    topicId: processingItem.id
+                });
+
+                if (statusResult.success && statusResult.status.existingAudio) {
+                    existingAudioNumbers = statusResult.status.existingAudio;
+                    existingCount = existingAudioNumbers.length;
+                    console.log(`🔄 Retry mode: ${existingCount} audio files already exist: [${existingAudioNumbers.join(', ')}]`);
+                }
+            }
+
+            let successCount = existingCount;
+            let failedScenes = [];
+
+            // Update status to show we're working
+            processingItem.voiceOvers = 'generating...';
+            populateProcessingTable();
+
+            for (const scene of scenes) {
+                // Check if paused during loop
+                if (pausedItems.has(processingItem.id)) {
+                    throw new Error('Voice generation paused by user during processing');
+                }
+
+                const sceneNumber = parseInt(scene.sceneNumber);
+
+                // Skip if already exists in retry mode
+                if (retryOnly && existingAudioNumbers.includes(sceneNumber)) {
+                    console.log(`⏭️ Skipping scene ${sceneNumber} - audio already exists`);
+                    continue;
+                }
+
+                console.log(`🎧 Generating voice for scene ${sceneNumber}...`);
+
+                const { ipcRenderer } = require('electron');
+                let attemptCount = 0;
+                let success = false;
+
+                while (attemptCount < 3 && !success) {
+                    attemptCount++;
+
+                    try {
+                        console.log(`🔄 Attempt ${attemptCount} for scene ${sceneNumber}`);
+
+                        // Use ElevenLabs SDK via IPC
+                        const voiceResult = await ipcRenderer.invoke('generate-voice', {
+                            text: scene.script,
+                            apiKey: elevenlabsApiKey,
+                            voiceId: elevenlabsVoiceId,
+                            sceneNumber: sceneNumber
+                        });
+
+                        if (!voiceResult.success) {
+                            console.error(`❌ ElevenLabs voice generation error: ${voiceResult.error}`);
+                            throw new Error(`ElevenLabs voice generation error: ${voiceResult.error}`);
+                        }
+
+                        console.log(`📦 Received audio data for scene ${sceneNumber}: ${voiceResult.fileSize} bytes`);
+
+                        // Save audio file
+                        const saveResult = await ipcRenderer.invoke('save-audio', {
+                            audioBuffer: voiceResult.audioBuffer,
+                            outputDir: processingItem.outputDir,
+                            topicId: processingItem.id,
+                            sceneNumber: sceneNumber
+                        });
+
+                        if (saveResult.success) {
+                            console.log(`✅ Scene ${sceneNumber} audio saved: ${saveResult.audioPath}`);
+                            successCount++;
+                            success = true;
+                        } else {
+                            throw new Error(`Failed to save audio: ${saveResult.error}`);
+                        }
+
+                        // Small delay between requests to be nice to the API
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+
+                    } catch (error) {
+                        console.log(`💥 Attempt ${attemptCount} failed for scene ${sceneNumber}: ${error.message}`);
+
+                        if (attemptCount < 3) {
+                            // Wait before retry
+                            if (error.message.includes('rate_limit') || error.message.includes('429')) {
+                                console.log('⏳ Rate limited, waiting 5 seconds...');
+                                await new Promise(resolve => setTimeout(resolve, 5000));
+                            } else {
+                                await new Promise(resolve => setTimeout(resolve, 2000));
+                            }
+                        }
+                    }
+                }
+
+                if (!success) {
+                    console.error(`❌ Failed to generate audio for scene ${sceneNumber} after 3 attempts`);
+                    failedScenes.push(sceneNumber);
+                }
+            }
+
+            console.log(`🎤 Voice generation completed: ${successCount}/${scenes.length} successful`);
+
+            // Update status
+            if (failedScenes.length === 0) {
+                processingItem.voiceOvers = 'done';
+                console.log(`✅ All voice overs generated successfully for ${processingItem.topic}`);
+            } else {
+                processingItem.voiceOvers = `${successCount}/${scenes.length} done`;
+                console.log(`⚠️ Voice generation partially completed: ${failedScenes.length} scenes failed: [${failedScenes.join(', ')}]`);
+            }
+
+            populateProcessingTable();
+            saveToLocalStorage();
+
+        } catch (error) {
+            console.error('Voice generation failed:', error);
+            processingItem.voiceOvers = 'failed';
+            processingItem.voiceError = error.message;
+            populateProcessingTable();
+            throw error;
+        }
+    }
+
     // Parse CSV content to extract scenes
     function parseCSVContent(csvContent) {
         const lines = csvContent.split('\n').filter(line => line.trim());
@@ -357,12 +646,89 @@ Format your response as JSON with this exact structure:
 
     // Generate images using Leonardo.ai
     async function generateImages(processingItem, retryOnly = false) {
-        if (!leonardoApiKey) {
-            throw new Error('Leonardo.ai API key not configured');
-        }
-
         if (!processingItem.outputDir) {
             throw new Error('Output directory not found');
+        }
+
+        // Check if this item is paused
+        if (pausedItems.has(processingItem.id)) {
+            throw new Error('Image generation paused by user');
+        }
+
+        // Handle Shorts videos by copying images from Long video
+        if (processingItem.ytType === 'Shorts') {
+            console.log(`Processing Shorts video: ${processingItem.id} - copying images from Long video`);
+
+            const baseId = processingItem.id.replace('_S', '');
+            const longId = baseId + '_L';
+            const longItem = processingData.find(item => item.id === longId);
+
+            if (!longItem || !longItem.outputDir) {
+                throw new Error('Long video not found or has no output directory');
+            }
+
+            // Check if Long video has images
+            const { ipcRenderer } = require('electron');
+            const longStatus = await ipcRenderer.invoke('check-processing-status', {
+                outputDir: longItem.outputDir,
+                topicId: longItem.id
+            });
+
+            if (!longStatus.success || longStatus.status.imageCount === 0) {
+                throw new Error('Long video has no images to copy. Generate Long video images first.');
+            }
+
+            console.log(`Copying ${longStatus.status.imageCount} images from Long to Shorts`);
+
+            // Copy images from Long to Shorts
+            const copyResult = await ipcRenderer.invoke('copy-images-long-to-shorts', {
+                longOutputDir: longItem.outputDir,
+                longTopicId: longItem.id,
+                shortsOutputDir: processingItem.outputDir,
+                shortsTopicId: processingItem.id
+            });
+
+            if (!copyResult.success) {
+                throw new Error(`Failed to copy images: ${copyResult.error}`);
+            }
+
+            console.log(`Successfully copied ${copyResult.copiedCount} images for Shorts video`);
+
+            // Update the processing item status
+            processingItem.image = 'done';
+            processingItem.totalScenes = copyResult.copiedCount;
+            populateProcessingTable();
+            saveToLocalStorage();
+
+            // Automatically start voice generation for Shorts after images are copied
+            console.log(`🎤 Images copied for Shorts ${processingItem.topic} - starting voice generation...`);
+            console.log(`Voice generation prerequisites check:`);
+            console.log(`- ElevenLabs API Key configured: ${elevenlabsApiKey ? 'YES' : 'NO'}`);
+            console.log(`- ElevenLabs Voice ID configured: ${elevenlabsVoiceId ? 'YES' : 'NO'}`);
+
+            if (!elevenlabsApiKey || !elevenlabsVoiceId) {
+                console.warn(`❌ Voice generation skipped for Shorts: Missing ElevenLabs configuration`);
+                processingItem.voiceOvers = 'config missing';
+                populateProcessingTable();
+                saveToLocalStorage();
+            } else {
+                try {
+                    await generateVoiceOvers(processingItem);
+                } catch (voiceError) {
+                    console.error(`❌ Voice generation failed for Shorts ${processingItem.topic}:`, voiceError);
+                    processingItem.voiceOvers = 'failed';
+                    processingItem.voiceError = voiceError.message;
+                    populateProcessingTable();
+                    saveToLocalStorage();
+                }
+            }
+
+            return; // Exit early for Shorts videos
+        }
+
+        // For Long videos, continue with regular image generation
+        if (!leonardoApiKey) {
+            throw new Error('Leonardo.ai API key not configured');
         }
 
         try {
@@ -414,6 +780,11 @@ Format your response as JSON with this exact structure:
 
             // Generate images for each scene
             for (let i = 0; i < scenes.length; i++) {
+                // Check if paused during loop
+                if (pausedItems.has(processingItem.id)) {
+                    throw new Error('Image generation paused by user during processing');
+                }
+
                 const scene = scenes[i];
                 const sceneNum = parseInt(scene.sceneNumber);
 
@@ -564,6 +935,32 @@ Format your response as JSON with this exact structure:
             // Update status with more detail
             if (successCount === scenes.length) {
                 processingItem.image = 'done';
+
+                // Automatically start voice generation when images are complete
+                console.log(`🎤 Images complete for ${processingItem.topic} - starting voice generation...`);
+                console.log(`📊 Image generation summary: ${successCount}/${scenes.length} images successful`);
+                console.log(`Voice generation prerequisites check:`);
+                console.log(`- ElevenLabs API Key configured: ${elevenlabsApiKey ? 'YES' : 'NO'}`);
+                console.log(`- ElevenLabs Voice ID configured: ${elevenlabsVoiceId ? 'YES' : 'NO'}`);
+                console.log(`- Processing item ID: ${processingItem.id}`);
+                console.log(`- Output directory: ${processingItem.outputDir}`);
+
+                if (!elevenlabsApiKey || !elevenlabsVoiceId) {
+                    console.warn(`❌ Voice generation skipped: Missing ElevenLabs configuration`);
+                    processingItem.voiceOvers = 'config missing';
+                    populateProcessingTable();
+                    saveToLocalStorage();
+                } else {
+                    try {
+                        await generateVoiceOvers(processingItem);
+                    } catch (voiceError) {
+                        console.error(`❌ Voice generation failed for ${processingItem.topic}:`, voiceError);
+                        processingItem.voiceOvers = 'failed';
+                        processingItem.voiceError = voiceError.message;
+                        populateProcessingTable();
+                        saveToLocalStorage();
+                    }
+                }
             } else {
                 processingItem.image = `${successCount}/${scenes.length} done`;
                 if (failedScenes.length > 0) {
@@ -592,7 +989,77 @@ Format your response as JSON with this exact structure:
             processingItem.script = 'writing...';
             populateProcessingTable();
 
-            const scriptData = await generateScript(processingItem.topic, processingItem.fullData.Info, processingItem.ytType);
+            let scriptData;
+
+            if (processingItem.ytType === 'Shorts') {
+                // For Shorts, find the corresponding Long video and convert its script
+                console.log(`🔄 Starting Shorts script generation for: ${processingItem.topic}`);
+
+                const baseId = processingItem.id.replace('_S', '');
+                const longId = baseId + '_L';
+                console.log(`📋 Looking for Long video with ID: ${longId}`);
+
+                const longItem = processingData.find(item => item.id === longId);
+
+                if (!longItem) {
+                    throw new Error(`Long video with ID ${longId} not found in processing data`);
+                }
+
+                if (longItem.script !== 'done') {
+                    throw new Error(`Long video script status is '${longItem.script}' - must be 'done' before generating Shorts script`);
+                }
+
+                console.log(`✅ Found Long video: ${longItem.topic}, Output Dir: ${longItem.outputDir}`);
+
+                // Read the Long script content
+                console.log(`📖 Reading Long script content...`);
+                const { ipcRenderer } = require('electron');
+                const csvResult = await ipcRenderer.invoke('read-csv-file', {
+                    outputDir: longItem.outputDir,
+                    topicId: longItem.id
+                });
+
+                if (!csvResult.success) {
+                    console.error(`❌ Failed to read Long script: ${csvResult.error}`);
+                    throw new Error(`Could not read Long script: ${csvResult.error}`);
+                }
+
+                console.log(`📝 Long script content length: ${csvResult.content.length} characters`);
+                console.log(`🔄 Starting OpenAI conversion to Shorts...`);
+
+                // Convert Long script to Shorts
+                const shortsScriptText = await convertLongToShorts(csvResult.content, processingItem.topic, processingItem.fullData.Info);
+
+                console.log(`✅ Shorts script conversion completed, length: ${shortsScriptText.length} characters`);
+
+                // Parse the converted script to get scene structure
+                const parsedScenes = parseCSVContent(shortsScriptText);
+
+                if (!parsedScenes || parsedScenes.length === 0) {
+                    throw new Error('Failed to parse converted Shorts script - no scenes found');
+                }
+
+                // Convert to the format expected by generateCSV with validation
+                const scenes = parsedScenes.map((scene, index) => {
+                    if (!scene.sceneNumber || !scene.script || !scene.imagePrompt) {
+                        console.warn(`Scene ${index + 1} missing required fields:`, scene);
+                    }
+
+                    return {
+                        scene_number: scene.sceneNumber || `${index + 1}`,
+                        script: scene.script || 'Missing script content',
+                        image_prompt: scene.imagePrompt || 'Missing image prompt'
+                    };
+                });
+
+                console.log(`Converted ${scenes.length} scenes for Shorts script`);
+                scriptData = { scenes };
+
+            } else {
+                // For Long videos, generate new script
+                scriptData = await generateScript(processingItem.topic, processingItem.fullData.Info, processingItem.ytType);
+            }
+
             const result = await generateCSV(processingItem.topic, processingItem.id, scriptData);
 
             if (result) {
@@ -614,17 +1081,24 @@ Format your response as JSON with this exact structure:
                 console.log(`Auto-starting image generation for ${processingItem.topic}`);
                 await generateImages(processingItem);
 
-                // TODO: Auto-generate voice overs here (future implementation)
-                // await generateVoiceOvers(processingItem);
+                // Voice overs will be automatically generated after images complete
 
             } else {
                 throw new Error('Failed to save CSV file');
             }
         } catch (error) {
-            console.error('Script generation failed:', error);
+            console.error(`💥 Script generation failed for ${processingItem.topic} (${processingItem.ytType}):`, error);
+            console.error('📊 Error details:', {
+                name: error.name,
+                message: error.message,
+                stack: error.stack
+            });
+
             processingItem.script = 'failed';
             populateProcessingTable();
-            alert(`Script generation failed for "${processingItem.topic}": ${error.message}`);
+            saveToLocalStorage();
+
+            alert(`Script generation failed for "${processingItem.topic}" (${processingItem.ytType}): ${error.message}`);
         }
     }
 
@@ -642,6 +1116,7 @@ Format your response as JSON with this exact structure:
             localStorage.setItem('bc_generator_leonardo_key', leonardoApiKey);
             localStorage.setItem('bc_generator_leonardo_model', selectedLeonardoModel);
             localStorage.setItem('bc_generator_leonardo_alchemy', leonardoAlchemyEnabled);
+            localStorage.setItem('bc_generator_paused_items', JSON.stringify(Array.from(pausedItems)));
             localStorage.setItem('bc_generator_timestamp', new Date().toISOString());
         } catch (e) {
             console.warn('Could not save to localStorage:', e);
@@ -717,6 +1192,10 @@ Format your response as JSON with this exact structure:
             if (savedVoiceId) {
                 elevenlabsVoiceId = savedVoiceId;
                 elevenlabsVoiceIdInput.value = savedVoiceId;
+                // Show test button if we have all requirements on page load
+                if (elevenlabsApiKey && elevenlabsVoiceId && testVoiceInput.value.trim()) {
+                    testVoiceBtn.style.display = 'inline-block';
+                }
             }
 
             const savedLateKey = localStorage.getItem('bc_generator_late_key');
@@ -744,6 +1223,11 @@ Format your response as JSON with this exact structure:
                 leonardoAlchemyEnabled = savedLeonardoAlchemy === 'true';
                 leonardoAlchemyToggle.checked = leonardoAlchemyEnabled;
             }
+
+            const savedPausedItems = localStorage.getItem('bc_generator_paused_items');
+            if (savedPausedItems) {
+                pausedItems = new Set(JSON.parse(savedPausedItems));
+            }
         } catch (e) {
             console.warn('Could not load from localStorage:', e);
         }
@@ -762,6 +1246,7 @@ Format your response as JSON with this exact structure:
             localStorage.removeItem('bc_generator_processing');
             localStorage.removeItem('bc_generator_next_id');
             localStorage.removeItem('bc_generator_used_ids');
+            localStorage.removeItem('bc_generator_paused_items');
             localStorage.removeItem('bc_generator_timestamp');
 
             // Restore API keys if they existed
@@ -820,10 +1305,15 @@ Format your response as JSON with this exact structure:
             case 'saved':
                 statusText.textContent = 'ElevenLabs API key saved and ready';
                 statusText.style.color = '#008000';
+                // Show test button if we have both API key and voice ID and test text
+                if (elevenlabsApiKey && elevenlabsVoiceId && testVoiceInput.value.trim()) {
+                    testVoiceBtn.style.display = 'inline-block';
+                }
                 break;
             default:
                 statusText.textContent = 'No ElevenLabs API key configured';
                 statusText.style.color = '#666666';
+                testVoiceBtn.style.display = 'none';
         }
     }
 
@@ -990,6 +1480,22 @@ Format your response as JSON with this exact structure:
             postingTd.innerHTML = `<span class="status ${getStatusClass(item.posting)}">${item.posting}</span>`;
             tr.appendChild(postingTd);
 
+            // Create folder cell
+            const folderTd = document.createElement('td');
+            if (item.outputDir) {
+                folderTd.innerHTML = `<button class="btn-secondary btn-small" onclick="openItemFolder(${index})" title="Open output folder">📁 See Folder</button>`;
+            } else {
+                folderTd.innerHTML = '<span class="text-muted">No folder</span>';
+            }
+            tr.appendChild(folderTd);
+
+            // Apply paused styling if item is paused
+            if (item.paused) {
+                tr.classList.add('paused');
+                tr.style.opacity = '0.6';
+                tr.style.backgroundColor = '#fff3cd';
+            }
+
             processingTable.appendChild(tr);
         });
 
@@ -1015,11 +1521,15 @@ Format your response as JSON with this exact structure:
             deselectAllProcessingBtn.style.display = 'none';
         }
 
-        // Show/hide cancel button based on ANY selection (not just all)
-        console.log('Cancel button visibility:', count > 0 ? 'show' : 'hide');
+        // Show/hide action buttons based on selection
+        console.log('Action button visibility:', count > 0 ? 'show' : 'hide');
         if (count > 0) {
+            pauseSelectedBtn.style.display = 'inline-block';
+            continueSelectedBtn.style.display = 'inline-block';
             cancelSelectedBtn.style.display = 'inline-block';
         } else {
+            pauseSelectedBtn.style.display = 'none';
+            continueSelectedBtn.style.display = 'none';
             cancelSelectedBtn.style.display = 'none';
         }
     }
@@ -1478,6 +1988,7 @@ Format your response as JSON with this exact structure:
             processingData = [];
             nextProcessingId = 1;
             usedTopicIds.clear();
+            pausedItems.clear();
             selectedRows.clear();
             populateTable();
             populateProcessingTable();
@@ -1525,6 +2036,48 @@ Format your response as JSON with this exact structure:
         } else {
             deselectAllProcessingBtn.click();
         }
+    });
+
+    // Pause functionality
+    pauseSelectedBtn.addEventListener('click', function() {
+        const selectedIndices = Array.from(selectedProcessingRows);
+
+        selectedIndices.forEach(index => {
+            if (index < processingData.length) {
+                const item = processingData[index];
+                pausedItems.add(item.id);
+                item.paused = true;
+                console.log(`Paused processing for: ${item.topic}`);
+            }
+        });
+
+        populateProcessingTable();
+        saveToLocalStorage();
+
+        // Clear selection after pausing
+        selectedProcessingRows.clear();
+        updateProcessingSelectionCount();
+    });
+
+    // Continue functionality
+    continueSelectedBtn.addEventListener('click', function() {
+        const selectedIndices = Array.from(selectedProcessingRows);
+
+        selectedIndices.forEach(index => {
+            if (index < processingData.length) {
+                const item = processingData[index];
+                pausedItems.delete(item.id);
+                item.paused = false;
+                console.log(`Resumed processing for: ${item.topic}`);
+            }
+        });
+
+        populateProcessingTable();
+        saveToLocalStorage();
+
+        // Clear selection after continuing
+        selectedProcessingRows.clear();
+        updateProcessingSelectionCount();
     });
 
     // Cancel functionality
@@ -1632,6 +2185,73 @@ Format your response as JSON with this exact structure:
         if (voiceId) {
             elevenlabsVoiceId = voiceId;
             saveToLocalStorage();
+            // Show test button if we have all requirements
+            if (elevenlabsApiKey && elevenlabsVoiceId && testVoiceInput.value.trim()) {
+                testVoiceBtn.style.display = 'inline-block';
+            }
+        }
+    });
+
+    // Test voice input changes
+    testVoiceInput.addEventListener('input', function() {
+        if (elevenlabsApiKey && elevenlabsVoiceId && testVoiceInput.value.trim()) {
+            testVoiceBtn.style.display = 'inline-block';
+        } else {
+            testVoiceBtn.style.display = 'none';
+        }
+    });
+
+    // Test voice generation
+    testVoiceBtn.addEventListener('click', async function() {
+        const text = testVoiceInput.value.trim();
+        if (!text || !elevenlabsApiKey || !elevenlabsVoiceId) {
+            return;
+        }
+
+        console.log('Testing voice generation with text:', text);
+
+        testVoiceResult.style.display = 'block';
+        testAudio.style.display = 'none';
+        testVoiceBtn.disabled = true;
+        testVoiceBtn.textContent = 'Generating...';
+
+        try {
+            testVoiceStatus.textContent = 'Generating voice...';
+            testVoiceStatus.style.color = '#0066cc';
+
+            // Use the same IPC call as the main voice generation
+            const { ipcRenderer } = require('electron');
+            const voiceResult = await ipcRenderer.invoke('generate-voice', {
+                text: text,
+                apiKey: elevenlabsApiKey,
+                voiceId: elevenlabsVoiceId,
+                sceneNumber: 'test'
+            });
+
+            if (!voiceResult.success) {
+                throw new Error(voiceResult.error);
+            }
+
+            console.log('Voice generation successful, file size:', voiceResult.fileSize);
+
+            // Convert array buffer back to blob for audio playback
+            const audioBlob = new Blob([new Uint8Array(voiceResult.audioBuffer)], { type: 'audio/mpeg' });
+            const audioUrl = URL.createObjectURL(audioBlob);
+
+            testAudio.src = audioUrl;
+            testAudio.style.display = 'block';
+
+            testVoiceStatus.textContent = `Voice generated successfully! (${voiceResult.fileSize} bytes)`;
+            testVoiceStatus.style.color = '#008000';
+
+        } catch (error) {
+            console.error('Voice generation test failed:', error);
+            testVoiceStatus.textContent = `Error: ${error.message}`;
+            testVoiceStatus.style.color = '#cc0000';
+            testAudio.style.display = 'none';
+        } finally {
+            testVoiceBtn.disabled = false;
+            testVoiceBtn.textContent = 'Generate Test Voice';
         }
     });
 
@@ -1831,9 +2451,25 @@ Format your response as JSON with this exact structure:
         }
     };
 
+    // Global function for inline voice generation
+    window.generateVoiceForItem = async function(index) {
+        if (index >= 0 && index < processingData.length) {
+            await generateVoiceOvers(processingData[index]);
+        }
+    };
+
+    // Global function to retry failed voice overs only
+    window.retryFailedVoices = async function(index) {
+        if (index >= 0 && index < processingData.length) {
+            const item = processingData[index];
+            console.log(`Retrying failed voice overs for ${item.topic}`);
+            await generateVoiceOvers(item, true);  // true = retry only missing audio
+        }
+    };
+
     // Refresh processing status
     async function refreshProcessingStatus() {
-        console.log('Refreshing processing status...');
+        console.log('🔄 Starting comprehensive processing status refresh...');
 
         if (typeof require === 'undefined') {
             console.warn('Refresh only works in Electron environment');
@@ -1842,13 +2478,22 @@ Format your response as JSON with this exact structure:
 
         const { ipcRenderer } = require('electron');
         const itemsToGenerateImages = [];
+        const itemsToGenerateVoice = [];
+        let totalItemsChecked = 0;
+        let itemsWithIssues = 0;
 
         for (let i = 0; i < processingData.length; i++) {
             const item = processingData[i];
+            totalItemsChecked++;
 
-            if (!item.outputDir) continue;
+            if (!item.outputDir) {
+                console.warn(`⚠️ ${item.topic}: No output directory specified`);
+                itemsWithIssues++;
+                continue;
+            }
 
             try {
+                console.log(`🔍 Checking ${item.topic} (${item.id})...`);
                 const result = await ipcRenderer.invoke('check-processing-status', {
                     outputDir: item.outputDir,
                     topicId: item.id
@@ -1857,6 +2502,14 @@ Format your response as JSON with this exact structure:
                 if (result.success) {
                     const { status } = result;
                     const wasScriptWaiting = item.script === 'waiting...';
+
+                    console.log(`📊 Status for ${item.topic}:`, {
+                        script: status.hasScript ? `✅ (${status.scriptSize} bytes)` : '❌',
+                        images: `${status.imageCount} files`,
+                        audio: `${status.audioCount} files`,
+                        video: status.hasVideo ? `✅ (${status.videoFiles.length} files)` : '❌',
+                        directories: status.directoryStructure
+                    });
 
                     // Update script status
                     if (status.hasScript && item.script !== 'done') {
@@ -1885,59 +2538,175 @@ Format your response as JSON with this exact structure:
                         }
                     }
 
-                    // Update image status
+                    // Update image status with detailed verification
                     if (status.imageCount > 0) {
                         if (item.totalScenes) {
                             if (status.imageCount === item.totalScenes) {
                                 item.image = 'done';
+                                console.log(`✅ ${item.topic}: All ${status.imageCount} images complete`);
+
+                                // Auto-trigger voice generation if images are complete but voice is not
+                                if (status.audioCount === 0 || (item.totalScenes && status.audioCount < item.totalScenes)) {
+                                    if (!itemsToGenerateVoice.includes(item)) {
+                                        itemsToGenerateVoice.push(item);
+                                        console.log(`🎯 ${item.topic}: Marked for auto voice generation (images complete, voice missing)`);
+                                    }
+                                }
                             } else {
                                 // Use the X/Y done format for partial completion
                                 item.image = `${status.imageCount}/${item.totalScenes} done`;
+                                console.log(`🔄 ${item.topic}: ${status.imageCount}/${item.totalScenes} images (missing: ${item.totalScenes - status.imageCount})`);
                             }
                         } else {
                             item.image = `${status.imageCount} images`;
+                            console.log(`📷 ${item.topic}: Found ${status.imageCount} images, but total scenes unknown`);
                         }
-                    } else if (status.hasScript && item.image === 'waiting...' && !itemsToGenerateImages.includes(item)) {
+
+                        // Log which specific image files exist
+                        if (status.existingImages.length > 0) {
+                            console.log(`📁 ${item.topic}: Image scenes found: [${status.existingImages.sort((a,b) => a-b).join(', ')}]`);
+                        }
+                    } else if (status.hasScript && !itemsToGenerateImages.includes(item)) {
                         // Script exists but no images yet, mark for generation
+                        item.image = 'waiting...';
                         itemsToGenerateImages.push(item);
-                        console.log(`Marked ${item.topic} for auto image generation (script exists)`);
+                        console.log(`🎯 ${item.topic}: Marked for auto image generation (script ready, no images)`);
+                    } else {
+                        // No script yet, keep waiting
+                        item.image = 'waiting...';
+                        console.log(`⏳ ${item.topic}: No images found, waiting for script or generation`);
                     }
 
-                    // Update audio status
+                    // Update audio status with detailed verification
                     if (status.audioCount > 0) {
                         if (item.totalScenes && status.audioCount === item.totalScenes) {
                             item.voiceOvers = 'done';
+                            console.log(`🔊 ${item.topic}: All ${status.audioCount} audio files complete`);
                         } else {
                             item.voiceOvers = `${status.audioCount} audios`;
+                            if (item.totalScenes) {
+                                console.log(`🎵 ${item.topic}: ${status.audioCount}/${item.totalScenes} audio files (missing: ${item.totalScenes - status.audioCount})`);
+                            } else {
+                                console.log(`🎵 ${item.topic}: Found ${status.audioCount} audio files, total scenes unknown`);
+                            }
                         }
+
+                        // Log which specific audio files exist
+                        if (status.existingAudio.length > 0) {
+                            console.log(`🎧 ${item.topic}: Audio scenes found: [${status.existingAudio.sort((a,b) => a-b).join(', ')}]`);
+                        }
+                    } else {
+                        // No audio files found, reset to waiting
+                        item.voiceOvers = 'waiting...';
+                        console.log(`⏳ ${item.topic}: No audio files found, status reset to waiting`);
                     }
 
-                    // Update video status
+                    // Update video status with detailed verification
                     if (status.hasVideo) {
                         item.video = 'done';
+                        console.log(`🎬 ${item.topic}: Video complete - files: [${status.videoFiles.join(', ')}]`);
+                    } else {
+                        // No video files found, reset to waiting
+                        item.video = 'waiting...';
+                        console.log(`⏳ ${item.topic}: No video files found, status reset to waiting`);
                     }
 
                     // Update posting status
                     if (status.hasScript && status.imageCount > 0 && status.audioCount > 0 && status.hasVideo) {
                         item.posting = 'ready to schedule';
+                        console.log(`🚀 ${item.topic}: Ready for posting - all assets complete`);
+                    } else {
+                        const missing = [];
+                        if (!status.hasScript) missing.push('script');
+                        if (status.imageCount === 0) missing.push('images');
+                        if (status.audioCount === 0) missing.push('audio');
+                        if (!status.hasVideo) missing.push('video');
+                        console.log(`⏳ ${item.topic}: Waiting for: [${missing.join(', ')}]`);
                     }
+                } else {
+                    console.error(`❌ ${item.topic}: Status check failed - ${result.error}`);
+                    itemsWithIssues++;
                 }
             } catch (error) {
-                console.error(`Error checking status for ${item.topic}:`, error);
+                console.error(`💥 ${item.topic}: Error during status check - ${error.message}`);
+                itemsWithIssues++;
             }
         }
+
+        // Print comprehensive refresh summary
+        console.log(`\n📊 REFRESH SUMMARY`);
+        console.log(`═══════════════════════════════════════`);
+        console.log(`📝 Total items checked: ${totalItemsChecked}`);
+        console.log(`⚠️ Items with issues: ${itemsWithIssues}`);
+        console.log(`🎯 Items marked for auto image generation: ${itemsToGenerateImages.length}`);
+        console.log(`🎤 Items marked for auto voice generation: ${itemsToGenerateVoice.length}`);
+
+        const completedItems = processingData.filter(item =>
+            item.script === 'done' &&
+            item.image === 'done' &&
+            item.voiceOvers === 'done' &&
+            item.video === 'done'
+        ).length;
+
+        const partialItems = processingData.filter(item =>
+            item.script === 'done' ||
+            (item.image !== 'waiting...' && item.image !== 'done') ||
+            (item.voiceOvers !== 'waiting...' && item.voiceOvers !== 'done') ||
+            (item.video !== 'waiting...' && item.video !== 'done')
+        ).length - completedItems;
+
+        console.log(`✅ Fully completed items: ${completedItems}`);
+        console.log(`🔄 Partially completed items: ${partialItems}`);
+        console.log(`⏸️ Not started items: ${totalItemsChecked - completedItems - partialItems}`);
+        console.log(`═══════════════════════════════════════\n`);
 
         populateProcessingTable();
         saveToLocalStorage();
 
         // Auto-generate images for items that have scripts but no images
         if (itemsToGenerateImages.length > 0) {
-            console.log(`Starting auto image generation for ${itemsToGenerateImages.length} items`);
+            console.log(`🚀 Starting auto image generation for ${itemsToGenerateImages.length} items`);
             for (const item of itemsToGenerateImages) {
-                console.log(`Auto-generating images for ${item.topic}`);
+                console.log(`🎨 Auto-generating images for ${item.topic}`);
                 await generateImages(item);
             }
+        } else {
+            console.log(`✨ No auto image generation needed`);
         }
+
+        // Auto-generate voice for items that have images but no voice
+        if (itemsToGenerateVoice.length > 0) {
+            console.log(`🚀 Starting auto voice generation for ${itemsToGenerateVoice.length} items`);
+            console.log(`Voice generation prerequisites check:`);
+            console.log(`- ElevenLabs API Key configured: ${elevenlabsApiKey ? 'YES' : 'NO'}`);
+            console.log(`- ElevenLabs Voice ID configured: ${elevenlabsVoiceId ? 'YES' : 'NO'}`);
+
+            if (!elevenlabsApiKey || !elevenlabsVoiceId) {
+                console.warn(`❌ Voice generation skipped: Missing ElevenLabs configuration`);
+                for (const item of itemsToGenerateVoice) {
+                    item.voiceOvers = 'config missing';
+                }
+                populateProcessingTable();
+                saveToLocalStorage();
+            } else {
+                for (const item of itemsToGenerateVoice) {
+                    console.log(`🎤 Auto-generating voice for ${item.topic}`);
+                    try {
+                        await generateVoiceOvers(item);
+                    } catch (voiceError) {
+                        console.error(`❌ Auto voice generation failed for ${item.topic}:`, voiceError);
+                        item.voiceOvers = 'failed';
+                        item.voiceError = voiceError.message;
+                        populateProcessingTable();
+                        saveToLocalStorage();
+                    }
+                }
+            }
+        } else {
+            console.log(`✨ No auto voice generation needed`);
+        }
+
+        console.log(`🎯 Refresh complete!`);
     }
 
     // Add refresh button event listener
@@ -1945,6 +2714,31 @@ Format your response as JSON with this exact structure:
     if (refreshStatusBtn) {
         refreshStatusBtn.addEventListener('click', refreshProcessingStatus);
     }
+
+    // Function to open item folder - needs to be global for onclick access
+    window.openItemFolder = async function(index) {
+        const item = processingData[index];
+        if (!item || !item.outputDir) {
+            alert('No output folder available for this item');
+            return;
+        }
+
+        try {
+            console.log(`Opening folder for ${item.topic}: ${item.outputDir}`);
+            const { ipcRenderer } = require('electron');
+            const result = await ipcRenderer.invoke('open-folder', { folderPath: item.outputDir });
+
+            if (result.success) {
+                console.log(`Successfully opened folder: ${item.outputDir}`);
+            } else {
+                console.error('Failed to open folder:', result.error);
+                alert(`Failed to open folder: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('Error opening folder:', error);
+            alert(`Error opening folder: ${error.message}`);
+        }
+    };
 
     // Load data from localStorage on page load
     loadFromLocalStorage();

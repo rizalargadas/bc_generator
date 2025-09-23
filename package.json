@@ -21,5 +21,8 @@
   "homepage": "https://github.com/rizalargadas/bc_generator#readme",
   "devDependencies": {
     "electron": "^38.1.2"
+  },
+  "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.16.0"
   }
 }

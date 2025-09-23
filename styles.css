@@ -747,3 +747,33 @@ main {
     outline: none;
     border-color: var(--accent);
 }
+
+/* Small button styling for folder access */
+.btn-small {
+    padding: 4px 8px;
+    font-size: 11px;
+    min-width: auto;
+    height: auto;
+    line-height: 1.2;
+}
+
+.btn-small:hover {
+    transform: translateY(-1px);
+}
+
+/* Paused item styling */
+.paused {
+    background-color: #fff3cd !important;
+    opacity: 0.6;
+    border-left: 3px solid #ffc107;
+}
+
+.paused td {
+    color: #856404;
+}
+
+/* Text muted styling */
+.text-muted {
+    color: var(--text-secondary);
+    font-style: italic;
+}
