@@ -49,6 +49,28 @@ document.addEventListener('DOMContentLoaded', function() {
     let elevenlabsVoiceId = '';
     let lateApiKey = '';
 
+    // Clean text function to remove special characters
+    function cleanText(text) {
+        if (!text) return '';
+
+        // Replace common Unicode characters with ASCII equivalents
+        return text
+            .replace(/[\u2018\u2019]/g, "'")  // Smart single quotes
+            .replace(/[\u201C\u201D]/g, '"')  // Smart double quotes
+            .replace(/\u2014/g, '--')          // Em dash
+            .replace(/\u2013/g, '-')           // En dash
+            .replace(/\u2026/g, '...')         // Ellipsis
+            .replace(/\u00A0/g, ' ')           // Non-breaking space
+            .replace(/[\u2010-\u2015]/g, '-')  // Various dashes
+            .replace(/[\u2022]/g, '*')         // Bullet point
+            .replace(/[\u00B7]/g, '-')         // Middle dot
+            .replace(/[\u2122]/g, 'TM')        // Trademark
+            .replace(/[\u00A9]/g, '(c)')       // Copyright
+            .replace(/[\u00AE]/g, '(R)')       // Registered
+            .replace(/[^\x00-\x7F]/g, '')      // Remove any remaining non-ASCII characters
+            .trim();
+    }
+
     // ID generation function
     function generateTopicId() {
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -86,11 +108,13 @@ Write a full script first as a numbered list of ${sceneCount} distinct scenes, e
 Full script should conclude with the specified haunting/hooky outro line/scene. Stay strictly within verified facts and note if the topic warrants a multi-part series. Your goal: craft an unforgettable, cinematic narrative experience that keeps viewers watching to the end — and eager for the next dark chapter.
 
 For each scene's image prompt, ensure they are:
-– Written in clear, descriptive English
-– Appropriate for OpenAI/DALL-E and compliant with their community standards
-– Visually accurate and aligned with the events and atmosphere of the script
-– Consistent in describing any recurring or prominent characters (describe their age, gender, clothing, and other distinctive features clearly and use the same description throughout all scenes where they appear)
-– Include the mood, time of day, setting, and any relevant props or details to make the image atmospheric and relevant to the story
+- Written in clear, descriptive English
+- Appropriate for OpenAI/DALL-E and compliant with their community standards
+- Visually accurate and aligned with the events and atmosphere of the script
+- Consistent in describing any recurring or prominent characters (describe their age, gender, clothing, and other distinctive features clearly and use the same description throughout all scenes where they appear)
+- Include the mood, time of day, setting, and any relevant props or details to make the image atmospheric and relevant to the story
+
+IMPORTANT: Use only plain ASCII text. Avoid special characters, smart quotes, em-dashes, or any Unicode characters. Use simple punctuation only (periods, commas, apostrophes, hyphens, quotes).
 
 Format your response as JSON with this exact structure:
 {
@@ -133,7 +157,17 @@ Format your response as JSON with this exact structure:
 
             // Try to parse as JSON, fallback to text parsing if needed
             try {
-                return JSON.parse(content);
+                const parsedData = JSON.parse(content);
+                // Clean all text in the parsed data
+                if (parsedData.scenes) {
+                    parsedData.scenes = parsedData.scenes.map(scene => ({
+                        ...scene,
+                        script: cleanText(scene.script),
+                        title: cleanText(scene.title),
+                        image_prompt: cleanText(scene.image_prompt)
+                    }));
+                }
+                return parsedData;
             } catch (parseError) {
                 // Fallback: parse text response
                 return parseTextScript(content);
@@ -159,9 +193,9 @@ Format your response as JSON with this exact structure:
                 }
                 currentScene = {
                     scene_number: sceneNumber++,
-                    title: line.replace(/^\d+\./, '').trim(),
+                    title: cleanText(line.replace(/^\d+\./, '').trim()),
                     script: '',
-                    image_prompt: `Dark, atmospheric scene for: ${line.replace(/^\d+\./, '').trim()}`
+                    image_prompt: cleanText(`Dark, atmospheric scene for: ${line.replace(/^\d+\./, '').trim()}`)
                 };
             } else if (currentScene && line) {
                 currentScene.script += line + ' ';
@@ -169,8 +203,17 @@ Format your response as JSON with this exact structure:
         });
 
         if (currentScene) {
+            currentScene.script = cleanText(currentScene.script);
             scenes.push(currentScene);
         }
+
+        // Clean all scenes
+        scenes = scenes.map(scene => ({
+            ...scene,
+            script: cleanText(scene.script),
+            title: cleanText(scene.title),
+            image_prompt: cleanText(scene.image_prompt)
+        }));
 
         return { scenes };
     }
