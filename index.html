@@ -81,6 +81,14 @@
                         <h2>Video Processing Pipeline</h2>
                         <div class="processing-stats">
                             <span id="processing-count">0 videos in queue</span>
+                            <button class="btn-secondary" id="refresh-status-btn" style="margin-left: 20px;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;">
+                                    <polyline points="23 4 23 10 17 10"></polyline>
+                                    <polyline points="1 20 1 14 7 14"></polyline>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                </svg>
+                                Refresh Status
+                            </button>
                         </div>
                     </div>
                     <div class="processing-controls">
@@ -159,6 +167,41 @@
                             <span class="status-text">No Late API key configured</span>
                         </div>
 
+                        <div class="form-group">
+                            <label for="leonardo-api-key">Leonardo.ai API Key:</label>
+                            <input type="password" id="leonardo-api-key" placeholder="Enter your Leonardo.ai API key" class="api-input">
+                            <button class="btn-secondary" id="save-leonardo-key">Save Key</button>
+                        </div>
+                        <div class="form-group">
+                            <label for="leonardo-model-select">Leonardo.ai Model:</label>
+                            <select id="leonardo-model-select" class="api-input">
+                                <option value="de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3">Leonardo Phoenix 1.0</option>
+                                <option value="b24e16ff-06e3-43eb-8d33-4416c2d75876">Leonardo Lightning XL</option>
+                                <option value="aa77f04e-3eec-4034-9c07-d0f619684628">Leonardo Kino XL</option>
+                                <option value="5c232a9e-9061-4777-980a-ddc8e65647c6">Leonardo Vision XL</option>
+                                <option value="e316348f-7773-490e-adcd-46757c738eb7">Absolute Reality v1.6</option>
+                                <option value="ac614f96-1082-45bf-be9d-757f2d31c174">DreamShaper v7</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="leonardo-alchemy-toggle" style="margin-right: 8px;">
+                                Enable Alchemy (Enhanced Quality - Costs 25-50% more credits)
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label for="test-prompt-input">Test Image Generation:</label>
+                            <input type="text" id="test-prompt-input" placeholder="Enter a prompt to test image generation..." class="api-input">
+                            <button class="btn-primary" id="test-generate-btn" style="display: none;">Generate Test Image</button>
+                        </div>
+                        <div id="test-image-result" style="margin-top: 10px; display: none;">
+                            <div id="test-status" style="margin-bottom: 10px;"></div>
+                            <img id="test-image" style="max-width: 100%; height: auto; border-radius: 4px; border: 1px solid #ddd;">
+                        </div>
+                        <div class="api-status" id="leonardo-status">
+                            <span class="status-text">No Leonardo.ai API key configured</span>
+                        </div>
+
                         <div class="settings-info">
                             <h3>How to get your API Keys:</h3>
 
@@ -187,6 +230,15 @@
                                 <li>Go to Settings or API section</li>
                                 <li>Generate a new API key and copy it</li>
                                 <li>Use this key to schedule and publish your content automatically</li>
+                            </ol>
+
+                            <h4>Leonardo.ai API Key:</h4>
+                            <ol>
+                                <li>Visit <a href="https://app.leonardo.ai" target="_blank">Leonardo.ai Dashboard</a></li>
+                                <li>Sign in to your Leonardo.ai account</li>
+                                <li>Go to <a href="https://app.leonardo.ai/api" target="_blank">API Settings</a></li>
+                                <li>Generate a new API key and copy it</li>
+                                <li>This key is used for high-quality, photorealistic image generation</li>
                             </ol>
 
                             <p><strong>Note:</strong> All API keys are stored locally in your browser and never sent to our servers.</p>

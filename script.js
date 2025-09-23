@@ -30,6 +30,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const saveLateKeyBtn = document.getElementById('save-late-key');
     const testLateKeyBtn = document.getElementById('test-late-key');
     const lateStatus = document.getElementById('late-status');
+    const leonardoApiKeyInput = document.getElementById('leonardo-api-key');
+    const saveLeonardoKeyBtn = document.getElementById('save-leonardo-key');
+    const leonardoModelSelect = document.getElementById('leonardo-model-select');
+    const leonardoAlchemyToggle = document.getElementById('leonardo-alchemy-toggle');
+    const testPromptInput = document.getElementById('test-prompt-input');
+    const testGenerateBtn = document.getElementById('test-generate-btn');
+    const testImageResult = document.getElementById('test-image-result');
+    const testStatus = document.getElementById('test-status');
+    const testImage = document.getElementById('test-image');
+    const leonardoStatus = document.getElementById('leonardo-status');
     const selectionCount = document.getElementById('selection-count');
     const selectAllBtn = document.getElementById('select-all-btn');
     const deselectAllBtn = document.getElementById('deselect-all-btn');
@@ -48,6 +58,9 @@ document.addEventListener('DOMContentLoaded', function() {
     let elevenlabsApiKey = '';
     let elevenlabsVoiceId = '';
     let lateApiKey = '';
+    let leonardoApiKey = '';
+    let selectedLeonardoModel = 'de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3'; // Default to Leonardo Phoenix 1.0
+    let leonardoAlchemyEnabled = false; // Default to disabled to save credits
 
     // Clean text function to remove special characters
     function cleanText(text) {
@@ -69,6 +82,47 @@ document.addEventListener('DOMContentLoaded', function() {
             .replace(/[\u00AE]/g, '(R)')       // Registered
             .replace(/[^\x00-\x7F]/g, '')      // Remove any remaining non-ASCII characters
             .trim();
+    }
+
+    // Sanitize image prompts to avoid content policy violations
+    function sanitizeImagePrompt(prompt, useStrictMode = false) {
+        if (!prompt) return '';
+
+        let sanitized = cleanText(prompt);
+
+        // For DALL-E 2, we can be less strict with replacements
+        if (useStrictMode) {
+            // Strict replacements for problematic content
+            const problematicTerms = {
+                'blood': 'red liquid',
+                'bloody': 'red-stained',
+                'gore': 'aftermath',
+                'corpse': 'lifeless figure',
+                'dead body': 'still figure',
+                'dead bodies': 'still figures',
+                'murder': 'dramatic incident',
+                'murdered': 'affected',
+                'killing': 'dramatic confrontation',
+                'child': 'young person',
+                'children': 'young people'
+            };
+
+            // Replace problematic terms (case-insensitive)
+            Object.keys(problematicTerms).forEach(term => {
+                const regex = new RegExp(`\\b${term}\\b`, 'gi');
+                sanitized = sanitized.replace(regex, problematicTerms[term]);
+            });
+        }
+
+        // For DALL-E 2, just add artistic prefix without heavy modification
+        if (!sanitized.toLowerCase().includes('illustration') && !sanitized.toLowerCase().includes('artistic')) {
+            sanitized = 'Digital art illustration: ' + sanitized;
+        }
+
+        // Add style modifiers for better results
+        sanitized += ', digital art style, atmospheric lighting, cinematic composition';
+
+        return sanitized;
     }
 
     // ID generation function
@@ -234,46 +288,302 @@ Format your response as JSON with this exact structure:
             row.map(cell => `"${cell.toString().replace(/"/g, '""')}"`).join(',')
         ).join('\n');
 
-        // Save file directly to scripts folder (Electron) or download (Web)
-        const filename = `${topicId}_${topic.replace(/[^a-zA-Z0-9]/g, '_')}.csv`;
-
         // Check if running in Electron
         if (typeof require !== 'undefined') {
-            // Electron: Save directly to scripts folder
+            // Electron: Save with new directory structure
             try {
                 const { ipcRenderer } = require('electron');
                 const result = await ipcRenderer.invoke('save-csv-file', {
-                    filename: filename,
+                    topicId: topicId,
+                    topicName: topic,
                     content: csvContent
                 });
 
                 if (result.success) {
                     console.log(`File saved to: ${result.filePath}`);
+                    console.log(`Output directory created: ${result.outputDir}`);
+                    return {
+                        filename: `${topicId}.csv`,
+                        outputDir: result.outputDir
+                    };
                 } else {
                     console.error('Failed to save file:', result.error);
                     alert(`Failed to save file: ${result.error}`);
+                    return null;
                 }
             } catch (error) {
                 console.error('Error saving file:', error);
                 alert(`Error saving file: ${error.message}`);
+                return null;
             }
         } else {
-            // Web: Download file
+            // Web: Download file (fallback for non-Electron environment)
+            const filename = `${topicId}.csv`;
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
 
             if (link.download !== undefined) {
                 const url = URL.createObjectURL(blob);
                 link.setAttribute('href', url);
-                link.setAttribute('download', `scripts/${filename}`);
+                link.setAttribute('download', filename);
                 link.style.visibility = 'hidden';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
             }
+            return { filename: filename, outputDir: null };
+        }
+    }
+
+    // Parse CSV content to extract scenes
+    function parseCSVContent(csvContent) {
+        const lines = csvContent.split('\n').filter(line => line.trim());
+        const scenes = [];
+
+        // Skip header row
+        for (let i = 1; i < lines.length; i++) {
+            const parts = parseCSVLine(lines[i]);
+            if (parts.length >= 3) {
+                scenes.push({
+                    sceneNumber: parts[0],
+                    script: parts[1],
+                    imagePrompt: parts[2]
+                });
+            }
         }
 
-        return filename;
+        return scenes;
+    }
+
+    // Generate images using Leonardo.ai
+    async function generateImages(processingItem, retryOnly = false) {
+        if (!leonardoApiKey) {
+            throw new Error('Leonardo.ai API key not configured');
+        }
+
+        if (!processingItem.outputDir) {
+            throw new Error('Output directory not found');
+        }
+
+        try {
+            // Read the CSV file
+            const { ipcRenderer } = require('electron');
+            const csvResult = await ipcRenderer.invoke('read-csv-file', {
+                outputDir: processingItem.outputDir,
+                topicId: processingItem.id
+            });
+
+            if (!csvResult.success) {
+                throw new Error(csvResult.error);
+            }
+
+            const scenes = parseCSVContent(csvResult.content);
+
+            // Check which images already exist if retrying
+            let existingSceneNumbers = [];
+            let existingCount = 0;
+
+            if (retryOnly) {
+                const statusResult = await ipcRenderer.invoke('check-processing-status', {
+                    outputDir: processingItem.outputDir,
+                    topicId: processingItem.id
+                });
+
+                if (statusResult.success) {
+                    existingCount = statusResult.status.imageCount;
+                    existingSceneNumbers = statusResult.status.existingImages || [];
+
+                    console.log(`Retrying failed images only. Found ${existingCount} existing images out of ${scenes.length}`);
+                    console.log(`Existing scene numbers: ${existingSceneNumbers.join(', ')}`);
+                }
+            }
+
+            console.log(`Generating ${retryOnly ? 'missing' : 'all'} images for ${processingItem.topic}`);
+
+            // Initialize or use existing failed scenes tracker
+            if (!processingItem.failedScenes) {
+                processingItem.failedScenes = [];
+            }
+
+            // Update status
+            processingItem.image = retryOnly ? 'retrying failed...' : 'generating...';
+            populateProcessingTable();
+
+            let successCount = existingCount;
+            const failedScenes = [];
+
+            // Generate images for each scene
+            for (let i = 0; i < scenes.length; i++) {
+                const scene = scenes[i];
+                const sceneNum = parseInt(scene.sceneNumber);
+
+                // Skip if image already exists (when retrying)
+                if (retryOnly && existingSceneNumbers.includes(sceneNum)) {
+                    console.log(`Skipping scene ${sceneNum} - image already exists`);
+                    continue;
+                }
+
+                // Update progress display
+                processingItem.image = `generating ${i + 1}/${scenes.length}...`;
+                populateProcessingTable();
+
+                try {
+                    console.log(`Generating image ${scene.sceneNumber} of ${scenes.length} for ${processingItem.topic}`);
+
+                    // Try with original prompt first
+                    let attemptCount = 0;
+                    let lastError = null;
+                    let imageGenerated = false;
+
+                    while (attemptCount < 3 && !imageGenerated) {
+                        attemptCount++;
+
+                        // Progressively simplify prompt on retries
+                        let promptToUse = scene.imagePrompt;
+                        if (attemptCount === 2) {
+                            // Second attempt: Use sanitized prompt
+                            promptToUse = sanitizeImagePrompt(scene.imagePrompt, true);
+                            console.log(`Attempt ${attemptCount}: Using sanitized prompt`);
+                        } else if (attemptCount === 3) {
+                            // Third attempt: Use generic safe prompt
+                            promptToUse = `Atmospheric cinematic scene, moody lighting, professional photography style, artistic composition`;
+                            console.log(`Attempt ${attemptCount}: Using generic safe prompt`);
+                        }
+
+                        try {
+                            // Call Leonardo.ai API for photorealistic images
+                            const response = await fetch('https://cloud.leonardo.ai/api/rest/v1/generations', {
+                                method: 'POST',
+                                headers: {
+                                    'accept': 'application/json',
+                                    'content-type': 'application/json',
+                                    'authorization': `Bearer ${leonardoApiKey}`
+                                },
+                                body: JSON.stringify({
+                                    prompt: promptToUse,
+                                    modelId: selectedLeonardoModel,
+                                    width: 1024,
+                                    height: 576,  // 16:9 aspect ratio (1024x576)
+                                    num_images: 1,
+                                    ...(leonardoAlchemyEnabled && { alchemy: true }),  // Only add alchemy if enabled
+                                    presetStyle: 'CINEMATIC'  // Cinematic style for video content
+                                })
+                            });
+
+                            if (!response.ok) {
+                                const errorText = await response.text();
+                                let errorMessage = `Leonardo API error: ${response.status}`;
+                                lastError = errorMessage;
+                                throw new Error(errorMessage);
+                            }
+
+                            const data = await response.json();
+                            const generationId = data.sdGenerationJob.generationId;
+
+                            // Poll for completion (Leonardo requires polling)
+                            let imageUrl = null;
+                            let attempts = 0;
+                            const maxAttempts = 30; // Wait up to 60 seconds
+
+                            while (!imageUrl && attempts < maxAttempts) {
+                                attempts++;
+                                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+
+                                const pollResponse = await fetch(`https://cloud.leonardo.ai/api/rest/v1/generations/${generationId}`, {
+                                    headers: {
+                                        'accept': 'application/json',
+                                        'authorization': `Bearer ${leonardoApiKey}`
+                                    }
+                                });
+
+                                if (pollResponse.ok) {
+                                    const pollData = await pollResponse.json();
+                                    if (pollData.generations_by_pk && pollData.generations_by_pk.status === 'COMPLETE') {
+                                        if (pollData.generations_by_pk.generated_images && pollData.generations_by_pk.generated_images.length > 0) {
+                                            imageUrl = pollData.generations_by_pk.generated_images[0].url;
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (!imageUrl) {
+                                throw new Error('Leonardo generation timed out or failed');
+                            }
+
+                            // Save the image
+                            const saveResult = await ipcRenderer.invoke('save-image', {
+                                imageUrl: imageUrl,
+                                outputDir: processingItem.outputDir,
+                                topicId: processingItem.id,
+                                sceneNumber: scene.sceneNumber
+                            });
+
+                            if (saveResult.success) {
+                                successCount++;
+                                console.log(`Image ${scene.sceneNumber} saved successfully on attempt ${attemptCount}`);
+                                imageGenerated = true;
+                                // Remove from failed scenes if it was there
+                                processingItem.failedScenes = processingItem.failedScenes.filter(s => s !== scene.sceneNumber);
+                            }
+
+                        } catch (error) {
+                            console.log(`Attempt ${attemptCount} failed for scene ${scene.sceneNumber}: ${error.message}`);
+
+                            if (attemptCount < 3) {
+                                // Wait before retry
+                                if (error.message.includes('rate_limit')) {
+                                    console.log('Rate limited, waiting 10 seconds...');
+                                    await new Promise(resolve => setTimeout(resolve, 10000));
+                                } else if (error.message.includes('content_policy')) {
+                                    console.log('Content policy issue, trying with safer prompt...');
+                                    await new Promise(resolve => setTimeout(resolve, 2000));
+                                } else {
+                                    await new Promise(resolve => setTimeout(resolve, 3000));
+                                }
+                            }
+                        }
+                    }
+
+                    if (!imageGenerated) {
+                        console.error(`Failed all 3 attempts for scene ${scene.sceneNumber}`);
+                        failedScenes.push(scene.sceneNumber);
+                    }
+
+                    // Add delay between scenes
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+
+                } catch (error) {
+                    console.error(`Unexpected error for scene ${scene.sceneNumber}:`, error);
+                    failedScenes.push(scene.sceneNumber);
+                }
+            }
+
+            // Store failed scenes for potential retry
+            processingItem.failedScenes = failedScenes;
+
+            // Update status with more detail
+            if (successCount === scenes.length) {
+                processingItem.image = 'done';
+            } else {
+                processingItem.image = `${successCount}/${scenes.length} done`;
+                if (failedScenes.length > 0) {
+                    processingItem.imageError = `Failed: scenes ${failedScenes.join(', ')}`;
+                }
+            }
+
+            processingItem.imageCount = successCount;
+            processingItem.totalScenes = scenes.length;
+            populateProcessingTable();
+            saveToLocalStorage();
+
+            return successCount;
+
+        } catch (error) {
+            processingItem.image = 'failed';
+            processingItem.imageError = error.message;
+            populateProcessingTable();
+            throw error;
+        }
     }
 
     async function processScriptGeneration(processingItem, index) {
@@ -283,15 +593,33 @@ Format your response as JSON with this exact structure:
             populateProcessingTable();
 
             const scriptData = await generateScript(processingItem.topic, processingItem.fullData.Info, processingItem.ytType);
-            const filename = await generateCSV(processingItem.topic, processingItem.id, scriptData);
+            const result = await generateCSV(processingItem.topic, processingItem.id, scriptData);
 
-            // Update status to done
-            processingItem.script = 'done';
-            processingItem.scriptFile = filename;
-            populateProcessingTable();
-            saveToLocalStorage();
+            if (result) {
+                // Update status to done
+                processingItem.script = 'done';
+                processingItem.scriptFile = result.filename;
+                processingItem.outputDir = result.outputDir;
 
-            console.log(`Script generated for ${processingItem.topic}: ${filename}`);
+                // Store total scenes for tracking
+                processingItem.totalScenes = scriptData.scenes ? scriptData.scenes.length : 0;
+
+                populateProcessingTable();
+                saveToLocalStorage();
+
+                console.log(`Script generated for ${processingItem.topic}`);
+                console.log(`Output directory: ${result.outputDir}`);
+
+                // Automatically start image generation
+                console.log(`Auto-starting image generation for ${processingItem.topic}`);
+                await generateImages(processingItem);
+
+                // TODO: Auto-generate voice overs here (future implementation)
+                // await generateVoiceOvers(processingItem);
+
+            } else {
+                throw new Error('Failed to save CSV file');
+            }
         } catch (error) {
             console.error('Script generation failed:', error);
             processingItem.script = 'failed';
@@ -311,6 +639,9 @@ Format your response as JSON with this exact structure:
             localStorage.setItem('bc_generator_elevenlabs_key', elevenlabsApiKey);
             localStorage.setItem('bc_generator_elevenlabs_voice_id', elevenlabsVoiceId);
             localStorage.setItem('bc_generator_late_key', lateApiKey);
+            localStorage.setItem('bc_generator_leonardo_key', leonardoApiKey);
+            localStorage.setItem('bc_generator_leonardo_model', selectedLeonardoModel);
+            localStorage.setItem('bc_generator_leonardo_alchemy', leonardoAlchemyEnabled);
             localStorage.setItem('bc_generator_timestamp', new Date().toISOString());
         } catch (e) {
             console.warn('Could not save to localStorage:', e);
@@ -394,6 +725,25 @@ Format your response as JSON with this exact structure:
                 lateApiKeyInput.value = savedLateKey;
                 updateLateStatus('saved');
             }
+
+            const savedLeonardoKey = localStorage.getItem('bc_generator_leonardo_key');
+            if (savedLeonardoKey) {
+                leonardoApiKey = savedLeonardoKey;
+                leonardoApiKeyInput.value = savedLeonardoKey;
+                updateLeonardoStatus('saved');
+            }
+
+            const savedLeonardoModel = localStorage.getItem('bc_generator_leonardo_model');
+            if (savedLeonardoModel) {
+                selectedLeonardoModel = savedLeonardoModel;
+                leonardoModelSelect.value = savedLeonardoModel;
+            }
+
+            const savedLeonardoAlchemy = localStorage.getItem('bc_generator_leonardo_alchemy');
+            if (savedLeonardoAlchemy !== null) {
+                leonardoAlchemyEnabled = savedLeonardoAlchemy === 'true';
+                leonardoAlchemyToggle.checked = leonardoAlchemyEnabled;
+            }
         } catch (e) {
             console.warn('Could not load from localStorage:', e);
         }
@@ -406,6 +756,7 @@ Format your response as JSON with this exact structure:
             const elevenlabsKey = localStorage.getItem('bc_generator_elevenlabs_key');
             const voiceId = localStorage.getItem('bc_generator_elevenlabs_voice_id');
             const lateKey = localStorage.getItem('bc_generator_late_key');
+            const leonardoKey = localStorage.getItem('bc_generator_leonardo_key');
 
             localStorage.removeItem('bc_generator_data');
             localStorage.removeItem('bc_generator_processing');
@@ -425,6 +776,9 @@ Format your response as JSON with this exact structure:
             }
             if (lateKey) {
                 localStorage.setItem('bc_generator_late_key', lateKey);
+            }
+            if (leonardoKey) {
+                localStorage.setItem('bc_generator_leonardo_key', leonardoKey);
             }
         } catch (e) {
             console.warn('Could not clear localStorage:', e);
@@ -498,6 +852,25 @@ Format your response as JSON with this exact structure:
                 statusText.textContent = 'No Late API key configured';
                 statusText.style.color = '#666666';
                 testLateKeyBtn.style.display = 'none';
+        }
+    }
+
+    function updateLeonardoStatus(status) {
+        const statusText = leonardoStatus.querySelector('.status-text');
+
+        switch (status) {
+            case 'saved':
+                statusText.textContent = 'Leonardo.ai API key saved and ready';
+                statusText.style.color = '#008000';
+                // Show test button if we have a prompt
+                if (testPromptInput.value.trim()) {
+                    testGenerateBtn.style.display = 'inline-block';
+                }
+                break;
+            default:
+                statusText.textContent = 'No Leonardo.ai API key configured';
+                statusText.style.color = '#666666';
+                testGenerateBtn.style.display = 'none';
         }
     }
 
@@ -583,7 +956,26 @@ Format your response as JSON with this exact structure:
             tr.appendChild(scriptTd);
 
             const imageTd = document.createElement('td');
-            imageTd.innerHTML = `<span class="status ${getStatusClass(item.image)}">${item.image}</span>`;
+            // Show retry button if images partially failed (e.g., "7/10 done")
+            const imageStatus = item.image || '';
+            const isPartiallyComplete = imageStatus.match(/(\d+)\/(\d+)\s*done/);
+
+            if (isPartiallyComplete) {
+                const [_, completed, total] = isPartiallyComplete;
+                if (parseInt(completed) < parseInt(total)) {
+                    imageTd.innerHTML = `
+                        <span class="status ${getStatusClass(item.image)}">${item.image}</span>
+                        <button class="btn-mini" onclick="retryFailedImages(${index})" title="Retry failed images">Retry</button>
+                    `;
+                    if (item.imageError) {
+                        imageTd.innerHTML += `<br><span style="color: #cc0000; font-size: 11px;">${item.imageError}</span>`;
+                    }
+                } else {
+                    imageTd.innerHTML = `<span class="status ${getStatusClass(item.image)}">${item.image}</span>`;
+                }
+            } else {
+                imageTd.innerHTML = `<span class="status ${getStatusClass(item.image)}">${item.image}</span>`;
+            }
             tr.appendChild(imageTd);
 
             const voiceTd = document.createElement('td');
@@ -1272,12 +1664,287 @@ Format your response as JSON with this exact structure:
         }
     });
 
+    // Leonardo API Management
+    saveLeonardoKeyBtn.addEventListener('click', function() {
+        const apiKey = leonardoApiKeyInput.value.trim();
+        if (apiKey) {
+            leonardoApiKey = apiKey;
+            saveToLocalStorage();
+            updateLeonardoStatus('saved');
+            populateProcessingTable(); // Refresh to show Generate buttons
+            // Show test generation button if we have an API key
+            if (leonardoApiKey) {
+                testGenerateBtn.style.display = 'inline-block';
+            }
+        }
+    });
+
+    // Leonardo model selection
+    leonardoModelSelect.addEventListener('change', function() {
+        selectedLeonardoModel = leonardoModelSelect.value;
+        saveToLocalStorage();
+    });
+
+    // Leonardo alchemy toggle
+    leonardoAlchemyToggle.addEventListener('change', function() {
+        leonardoAlchemyEnabled = leonardoAlchemyToggle.checked;
+        saveToLocalStorage();
+    });
+
+    // Test prompt input changes
+    testPromptInput.addEventListener('input', function() {
+        if (leonardoApiKey && testPromptInput.value.trim()) {
+            testGenerateBtn.style.display = 'inline-block';
+        } else {
+            testGenerateBtn.style.display = 'none';
+        }
+    });
+
+    // Test image generation
+    testGenerateBtn.addEventListener('click', async function() {
+        const prompt = testPromptInput.value.trim();
+        if (!prompt || !leonardoApiKey) {
+            return;
+        }
+
+        testStatus.textContent = 'Generating test image...';
+        testStatus.style.color = '#ff8800';
+        testImageResult.style.display = 'block';
+        testImage.style.display = 'none';
+        testGenerateBtn.disabled = true;
+        testGenerateBtn.textContent = 'Generating...';
+
+        try {
+            // Validate API key format
+            if (!leonardoApiKey || leonardoApiKey.length < 10) {
+                throw new Error('Invalid API key format. Please check your Leonardo.ai API key.');
+            }
+
+            console.log('Making Leonardo API request with model:', selectedLeonardoModel);
+
+            // Call Leonardo.ai API
+            const requestBody = {
+                prompt: prompt,
+                modelId: selectedLeonardoModel,
+                width: 1024,
+                height: 576,  // 16:9 aspect ratio
+                num_images: 1,
+                presetStyle: 'CINEMATIC'
+            };
+
+            // Only add alchemy if enabled
+            if (leonardoAlchemyEnabled) {
+                requestBody.alchemy = true;
+            }
+
+            console.log('Request body:', requestBody);
+
+            const response = await fetch('https://cloud.leonardo.ai/api/rest/v1/generations', {
+                method: 'POST',
+                headers: {
+                    'accept': 'application/json',
+                    'content-type': 'application/json',
+                    'authorization': `Bearer ${leonardoApiKey}`
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            console.log('Response status:', response.status);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('API Error Response:', errorText);
+                throw new Error(`API error: ${response.status} - ${errorText}`);
+            }
+
+            const result = await response.json();
+            const generationId = result.sdGenerationJob.generationId;
+
+            // Poll for completion
+            testStatus.textContent = 'Processing image (this may take 30-60 seconds)...';
+            let imageUrl = null;
+            let attempts = 0;
+            const maxAttempts = 30; // 60 seconds max
+
+            while (!imageUrl && attempts < maxAttempts) {
+                attempts++;
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+
+                const pollResponse = await fetch(`https://cloud.leonardo.ai/api/rest/v1/generations/${generationId}`, {
+                    headers: {
+                        'accept': 'application/json',
+                        'authorization': `Bearer ${leonardoApiKey}`
+                    }
+                });
+
+                if (pollResponse.ok) {
+                    const pollData = await pollResponse.json();
+                    if (pollData.generations_by_pk && pollData.generations_by_pk.status === 'COMPLETE') {
+                        if (pollData.generations_by_pk.generated_images && pollData.generations_by_pk.generated_images.length > 0) {
+                            imageUrl = pollData.generations_by_pk.generated_images[0].url;
+                        }
+                    }
+                }
+            }
+
+            if (imageUrl) {
+                testStatus.textContent = 'Image generated successfully!';
+                testStatus.style.color = '#008000';
+                testImage.src = imageUrl;
+                testImage.style.display = 'block';
+            } else {
+                throw new Error('Generation timed out or failed');
+            }
+
+        } catch (error) {
+            console.error('Test generation error:', error);
+            testStatus.textContent = `Error: ${error.message}`;
+            testStatus.style.color = '#cc0000';
+            testImage.style.display = 'none';
+        } finally {
+            testGenerateBtn.disabled = false;
+            testGenerateBtn.textContent = 'Generate Test Image';
+        }
+    });
+
+
     // Global function for inline script generation
     window.generateScriptForItem = async function(index) {
         if (index >= 0 && index < processingData.length) {
             await processScriptGeneration(processingData[index], index);
         }
     };
+
+    // Global function for inline image generation
+    window.generateImagesForItem = async function(index) {
+        if (index >= 0 && index < processingData.length) {
+            await generateImages(processingData[index]);
+        }
+    };
+
+    // Global function to retry failed images only
+    window.retryFailedImages = async function(index) {
+        if (index >= 0 && index < processingData.length) {
+            const item = processingData[index];
+            console.log(`Retrying failed images for ${item.topic}`);
+            await generateImages(item, true);  // true = retry only missing images
+        }
+    };
+
+    // Refresh processing status
+    async function refreshProcessingStatus() {
+        console.log('Refreshing processing status...');
+
+        if (typeof require === 'undefined') {
+            console.warn('Refresh only works in Electron environment');
+            return;
+        }
+
+        const { ipcRenderer } = require('electron');
+        const itemsToGenerateImages = [];
+
+        for (let i = 0; i < processingData.length; i++) {
+            const item = processingData[i];
+
+            if (!item.outputDir) continue;
+
+            try {
+                const result = await ipcRenderer.invoke('check-processing-status', {
+                    outputDir: item.outputDir,
+                    topicId: item.id
+                });
+
+                if (result.success) {
+                    const { status } = result;
+                    const wasScriptWaiting = item.script === 'waiting...';
+
+                    // Update script status
+                    if (status.hasScript && item.script !== 'done') {
+                        item.script = 'done';
+
+                        // If script just became done and images are still waiting, mark for auto-generation
+                        if (wasScriptWaiting && item.image === 'waiting...' && status.imageCount === 0) {
+                            itemsToGenerateImages.push(item);
+                            console.log(`Marked ${item.topic} for auto image generation`);
+                        }
+                    }
+
+                    // First, try to determine total scenes from CSV if not already set
+                    if (status.hasScript && !item.totalScenes) {
+                        try {
+                            const csvResult = await ipcRenderer.invoke('read-csv-file', {
+                                outputDir: item.outputDir,
+                                topicId: item.id
+                            });
+                            if (csvResult.success) {
+                                const scenes = parseCSVContent(csvResult.content);
+                                item.totalScenes = scenes.length;
+                            }
+                        } catch (error) {
+                            console.error('Error reading CSV for scene count:', error);
+                        }
+                    }
+
+                    // Update image status
+                    if (status.imageCount > 0) {
+                        if (item.totalScenes) {
+                            if (status.imageCount === item.totalScenes) {
+                                item.image = 'done';
+                            } else {
+                                // Use the X/Y done format for partial completion
+                                item.image = `${status.imageCount}/${item.totalScenes} done`;
+                            }
+                        } else {
+                            item.image = `${status.imageCount} images`;
+                        }
+                    } else if (status.hasScript && item.image === 'waiting...' && !itemsToGenerateImages.includes(item)) {
+                        // Script exists but no images yet, mark for generation
+                        itemsToGenerateImages.push(item);
+                        console.log(`Marked ${item.topic} for auto image generation (script exists)`);
+                    }
+
+                    // Update audio status
+                    if (status.audioCount > 0) {
+                        if (item.totalScenes && status.audioCount === item.totalScenes) {
+                            item.voiceOvers = 'done';
+                        } else {
+                            item.voiceOvers = `${status.audioCount} audios`;
+                        }
+                    }
+
+                    // Update video status
+                    if (status.hasVideo) {
+                        item.video = 'done';
+                    }
+
+                    // Update posting status
+                    if (status.hasScript && status.imageCount > 0 && status.audioCount > 0 && status.hasVideo) {
+                        item.posting = 'ready to schedule';
+                    }
+                }
+            } catch (error) {
+                console.error(`Error checking status for ${item.topic}:`, error);
+            }
+        }
+
+        populateProcessingTable();
+        saveToLocalStorage();
+
+        // Auto-generate images for items that have scripts but no images
+        if (itemsToGenerateImages.length > 0) {
+            console.log(`Starting auto image generation for ${itemsToGenerateImages.length} items`);
+            for (const item of itemsToGenerateImages) {
+                console.log(`Auto-generating images for ${item.topic}`);
+                await generateImages(item);
+            }
+        }
+    }
+
+    // Add refresh button event listener
+    const refreshStatusBtn = document.getElementById('refresh-status-btn');
+    if (refreshStatusBtn) {
+        refreshStatusBtn.addEventListener('click', refreshProcessingStatus);
+    }
 
     // Load data from localStorage on page load
     loadFromLocalStorage();
