@@ -845,6 +845,76 @@ main {
     font-size: 13px;
 }
 
+/* Configuration Section */
+.config-section {
+    background: #f0f8ff;
+    border: 1px solid #b3d9f2;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.config-section:hover {
+    border-color: #0066cc;
+    box-shadow: 0 2px 8px rgba(0, 102, 204, 0.1);
+}
+
+.config-section-header {
+    background: linear-gradient(135deg, #e6f3ff 0%, #cce7ff 100%);
+    padding: 16px 20px;
+    border-bottom: 1px solid #b3d9f2;
+}
+
+.config-section-header h3 {
+    margin: 0 0 4px 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.config-description {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.config-section-content {
+    padding: 20px;
+    background: white;
+}
+
+.config-section-content .form-group {
+    margin-bottom: 16px;
+}
+
+.config-info {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-top: 12px;
+}
+
+.config-info p {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.config-info p:last-child {
+    margin-bottom: 0;
+}
+
+#current-word-count {
+    font-weight: 600;
+    color: #0066cc;
+}
+
 /* Help Section Dropdown */
 .help-section {
     background: #f8f9fa;

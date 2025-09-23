@@ -254,6 +254,25 @@
                         </div>
                     </div>
 
+                    <!-- Script Configuration Section -->
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <h3>⚙️ Script Configuration</h3>
+                            <p class="config-description">Customize script generation settings and parameters</p>
+                        </div>
+                        <div class="config-section-content">
+                            <div class="form-group">
+                                <label for="long-script-words">Long Video Script Word Count:</label>
+                                <input type="number" id="long-script-words" placeholder="6000" min="1000" max="20000" step="100" class="api-input">
+                                <button class="btn-secondary" id="save-script-config">Save Configuration</button>
+                            </div>
+                            <div class="config-info">
+                                <p><strong>Note:</strong> Recommended range is 1,000-20,000 words. Shorts videos will automatically use a shorter version derived from the Long script.</p>
+                                <p><strong>Current:</strong> <span id="current-word-count">6000</span> words for Long videos</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- API Keys Help Section -->
                     <div class="help-section">
                         <div class="help-header" onclick="toggleApiHelp()">

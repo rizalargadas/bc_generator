@@ -47,6 +47,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const testVoiceStatus = document.getElementById('test-voice-status');
     const testAudio = document.getElementById('test-audio');
     const leonardoStatus = document.getElementById('leonardo-status');
+    const longScriptWordsInput = document.getElementById('long-script-words');
+    const saveScriptConfigBtn = document.getElementById('save-script-config');
+    const currentWordCountSpan = document.getElementById('current-word-count');
     const selectionCount = document.getElementById('selection-count');
     const selectAllBtn = document.getElementById('select-all-btn');
     const deselectAllBtn = document.getElementById('deselect-all-btn');
@@ -69,6 +72,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let leonardoApiKey = '';
     let selectedLeonardoModel = 'de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3'; // Default to Leonardo Phoenix 1.0
     let leonardoAlchemyEnabled = false; // Default to disabled to save credits
+    let longScriptWordCount = 6000; // Default word count for Long videos
 
     // Clean text function to remove special characters
     function cleanText(text) {
@@ -249,8 +253,10 @@ The scenes should match the original scene numbers but with shortened, more dyna
         }
 
         const isShort = ytType === 'Shorts';
-        const targetWords = isShort ? 400 : 6000;  // Long videos now 6000 words
+        const targetWords = isShort ? 400 : longScriptWordCount;  // Use configurable word count for Long videos
         const sceneCount = isShort ? 4 : 10;
+
+        console.log(`📝 Script generation for ${ytType}: Target words = ${targetWords} (configured: ${longScriptWordCount})`);
 
         const prompt = `You are an award-winning narrative architect and YouTube strategy expert specializing in faceless, AI-narrated, content (True Crime, Dark History, Mysteries, Creepy Happenings) that maximizes audience retention and growth. You craft meticulously-researched, vividly-told scripts that create an eerie yet factual journey into humanity's darkest chapters.
 
@@ -1117,6 +1123,7 @@ Format your response as JSON with this exact structure:
             localStorage.setItem('bc_generator_leonardo_model', selectedLeonardoModel);
             localStorage.setItem('bc_generator_leonardo_alchemy', leonardoAlchemyEnabled);
             localStorage.setItem('bc_generator_paused_items', JSON.stringify(Array.from(pausedItems)));
+            localStorage.setItem('bc_generator_script_word_count', longScriptWordCount);
             localStorage.setItem('bc_generator_timestamp', new Date().toISOString());
         } catch (e) {
             console.warn('Could not save to localStorage:', e);
@@ -1228,6 +1235,18 @@ Format your response as JSON with this exact structure:
             if (savedPausedItems) {
                 pausedItems = new Set(JSON.parse(savedPausedItems));
             }
+
+            const savedScriptWordCount = localStorage.getItem('bc_generator_script_word_count');
+            if (savedScriptWordCount) {
+                longScriptWordCount = parseInt(savedScriptWordCount);
+                // Update UI elements if they exist
+                if (longScriptWordsInput) {
+                    longScriptWordsInput.value = longScriptWordCount;
+                }
+                if (currentWordCountSpan) {
+                    currentWordCountSpan.textContent = longScriptWordCount;
+                }
+            }
         } catch (e) {
             console.warn('Could not load from localStorage:', e);
         }
@@ -1247,6 +1266,7 @@ Format your response as JSON with this exact structure:
             localStorage.removeItem('bc_generator_next_id');
             localStorage.removeItem('bc_generator_used_ids');
             localStorage.removeItem('bc_generator_paused_items');
+            localStorage.removeItem('bc_generator_script_word_count');
             localStorage.removeItem('bc_generator_timestamp');
 
             // Restore API keys if they existed
@@ -1989,10 +2009,15 @@ Format your response as JSON with this exact structure:
             nextProcessingId = 1;
             usedTopicIds.clear();
             pausedItems.clear();
+            longScriptWordCount = 6000; // Reset to default
             selectedRows.clear();
             populateTable();
             populateProcessingTable();
             updateSelectionCount();
+
+            // Reset UI elements
+            longScriptWordsInput.value = longScriptWordCount;
+            currentWordCountSpan.textContent = longScriptWordCount;
 
             fileInfo.innerHTML = `
                 <div style="text-align: center;">
@@ -2427,6 +2452,37 @@ Format your response as JSON with this exact structure:
         }
     });
 
+    // Script Configuration Management
+    saveScriptConfigBtn.addEventListener('click', function() {
+        const wordCount = parseInt(longScriptWordsInput.value.trim());
+        if (wordCount && wordCount >= 1000 && wordCount <= 20000) {
+            longScriptWordCount = wordCount;
+            saveToLocalStorage();
+            currentWordCountSpan.textContent = wordCount;
+
+            // Show success feedback
+            const originalText = saveScriptConfigBtn.textContent;
+            saveScriptConfigBtn.textContent = 'Saved!';
+            saveScriptConfigBtn.style.backgroundColor = '#28a745';
+
+            setTimeout(() => {
+                saveScriptConfigBtn.textContent = originalText;
+                saveScriptConfigBtn.style.backgroundColor = '';
+            }, 2000);
+
+            console.log(`Script word count updated to: ${wordCount} words`);
+        } else {
+            alert('Please enter a valid word count between 1,000 and 20,000');
+        }
+    });
+
+    // Update word count display when input changes
+    longScriptWordsInput.addEventListener('input', function() {
+        const wordCount = parseInt(longScriptWordsInput.value.trim());
+        if (wordCount && wordCount >= 1000 && wordCount <= 20000) {
+            currentWordCountSpan.textContent = wordCount;
+        }
+    });
 
     // Global function for inline script generation
     window.generateScriptForItem = async function(index) {
