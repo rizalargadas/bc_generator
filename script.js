@@ -65,19 +65,23 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // OpenAI Script Generation
-    async function generateScript(topic, info) {
+    async function generateScript(topic, info, ytType = 'Long') {
         if (!openaiApiKey) {
             throw new Error('OpenAI API key not configured');
         }
 
+        const isShort = ytType === 'Shorts';
+        const targetWords = isShort ? 400 : 1200;
+        const sceneCount = isShort ? 4 : 10;
+
         const prompt = `You are an award-winning narrative architect and YouTube strategy expert specializing in faceless, AI-narrated, content (True Crime, Dark History, Mysteries, Creepy Happenings) that maximizes audience retention and growth. You craft meticulously-researched, vividly-told scripts that create an eerie yet factual journey into humanity's darkest chapters.
 
-Write an immersive, narrative-driven YouTube script on:
+Write an immersive, narrative-driven YouTube ${isShort ? 'Shorts' : 'Long-form'} script on:
 📌 TOPIC: ${topic}
 
 Short Info About the Topic: ${info}
 
-Write a full script first as a numbered list of at least 10 distinct scenes, each with a title and target word count to collectively total ~1200 words. Use suspenseful but calm, authoritative language to build curiosity and maintain an unsettling yet factual tone. After presenting the outline,
+Write a full script first as a numbered list of ${sceneCount} distinct scenes, each with a title and target word count to collectively total ~${targetWords} words. ${isShort ? 'For Shorts, focus on immediate hook and rapid pacing.' : 'Use suspenseful but calm, authoritative language to build curiosity and maintain an unsettling yet factual tone.'} After presenting the outline,
 
 Full script should conclude with the specified haunting/hooky outro line/scene. Stay strictly within verified facts and note if the topic warrants a multi-part series. Your goal: craft an unforgettable, cinematic narrative experience that keeps viewers watching to the end — and eager for the next dark chapter.
 
@@ -235,7 +239,7 @@ Format your response as JSON with this exact structure:
             processingItem.script = 'writing...';
             populateProcessingTable();
 
-            const scriptData = await generateScript(processingItem.topic, processingItem.fullData.Info);
+            const scriptData = await generateScript(processingItem.topic, processingItem.fullData.Info, processingItem.ytType);
             const filename = await generateCSV(processingItem.topic, processingItem.id, scriptData);
 
             // Update status to done
@@ -283,7 +287,11 @@ Format your response as JSON with this exact structure:
                 // Add IDs to existing data that doesn't have them
                 csvData.forEach(row => {
                     if (!row._topicId) {
-                        row._topicId = generateTopicId();
+                        const baseId = generateTopicId();
+                        row._topicId = baseId + (row['YT Type'] === 'Shorts' ? '_S' : '_L');
+                    } else if (!row._topicId.match(/_[LS]$/)) {
+                        // Add suffix to existing IDs that don't have them
+                        row._topicId = row._topicId + (row['YT Type'] === 'Shorts' ? '_S' : '_L');
                     }
                 });
 
@@ -454,11 +462,13 @@ Format your response as JSON with this exact structure:
         return {
             id: topicData._topicId, // Use the same ID from Pending Topics
             topic: topicData.Topic,
+            ytType: topicData['YT Type'] || 'Long',
             script: 'writing...',
             image: 'waiting...',
             voiceOvers: 'waiting...',
             video: 'waiting...',
-            posting: 'waiting'
+            posting: 'waiting',
+            fullData: topicData // Store all data for reference
         };
     }
 
@@ -581,25 +591,13 @@ Format your response as JSON with this exact structure:
 
     const requiredColumns = [
         'Topic',
-        'Info',
-        'Schedule Date',
-        'Schedule Time',
-        'TikTok Caption',
-        'YouTube Title',
-        'YouTube Description',
-        'Youtube Tags'
+        'Info'
     ];
 
     // Display mapping for shorter column names in the table
     const columnDisplayNames = {
         'Topic': 'Topic',
-        'Info': 'Info',
-        'Schedule Date': 'Schedule',
-        'Schedule Time': 'Time',
-        'TikTok Caption': 'TikTok',
-        'YouTube Title': 'YT Title',
-        'YouTube Description': 'YT Desc',
-        'Youtube Tags': 'YT Tags'
+        'Info': 'Info'
     };
 
     tabButtons.forEach(button => {
@@ -623,14 +621,25 @@ Format your response as JSON with this exact structure:
 
         for (let i = 1; i < lines.length; i++) {
             const values = parseCSVLine(lines[i]);
-            const row = {};
+            const baseRow = {};
             headers.forEach((header, index) => {
-                row[header.trim()] = values[index] ? values[index].trim() : '';
+                baseRow[header.trim()] = values[index] ? values[index].trim() : '';
             });
 
-            // Assign unique ID to each topic
-            row._topicId = generateTopicId();
-            data.push(row);
+            // Generate base ID for both versions
+            const baseId = generateTopicId();
+
+            // Create Long version
+            const longRow = {...baseRow};
+            longRow._topicId = baseId + '_L';
+            longRow['YT Type'] = 'Long';
+            data.push(longRow);
+
+            // Create Shorts version
+            const shortsRow = {...baseRow};
+            shortsRow._topicId = baseId + '_S';
+            shortsRow['YT Type'] = 'Shorts';
+            data.push(shortsRow);
         }
         return data;
     }
@@ -753,74 +762,52 @@ Format your response as JSON with this exact structure:
             idTd.appendChild(idSpan);
             tr.appendChild(idTd);
 
-            requiredColumns.forEach(column => {
+            // Add required columns plus YT Type
+            const displayColumns = [...requiredColumns, 'YT Type'];
+            displayColumns.forEach(column => {
                 const td = document.createElement('td');
                 const cellContent = createCellContent(row[column] || '', column);
 
-                if (column === 'Schedule Date' || column === 'Schedule Time') {
-                    // Special handling for date and time columns
-                    const inputWrapper = document.createElement('div');
-                    inputWrapper.className = 'input-wrapper';
-                    inputWrapper.appendChild(cellContent);
+                if (column === 'YT Type') {
+                    // Special handling for YT Type dropdown
+                    const selectWrapper = document.createElement('div');
+                    selectWrapper.className = 'select-wrapper';
 
-                    inputWrapper.addEventListener('click', function(e) {
-                        if (e.target.classList.contains('clippable')) return; // Let clippable text handle its own click
+                    const select = document.createElement('select');
+                    select.className = 'yt-type-select';
 
-                        const input = document.createElement('input');
-                        input.type = column === 'Schedule Date' ? 'date' : 'time';
-                        input.className = 'datetime-input';
+                    const option1 = document.createElement('option');
+                    option1.value = 'Shorts';
+                    option1.textContent = 'Shorts';
 
-                        // Convert display value to input format
-                        let currentValue = csvData[index][column] || '';
-                        if (column === 'Schedule Date' && currentValue) {
-                            // Try to parse various date formats to YYYY-MM-DD
-                            const date = new Date(currentValue);
-                            if (!isNaN(date)) {
-                                input.value = date.toISOString().split('T')[0];
-                            }
-                        } else if (column === 'Schedule Time' && currentValue) {
-                            // Try to parse time format to HH:MM
-                            if (currentValue.match(/^\d{1,2}:\d{2}/)) {
-                                input.value = currentValue;
-                            }
+                    const option2 = document.createElement('option');
+                    option2.value = 'Long';
+                    option2.textContent = 'Long';
+
+                    select.appendChild(option1);
+                    select.appendChild(option2);
+
+                    // Set current value (default to Long)
+                    select.value = row[column] || 'Long';
+
+                    select.addEventListener('change', function() {
+                        csvData[index][column] = this.value;
+                        // Update the ID suffix based on YT Type
+                        const currentId = csvData[index]._topicId;
+                        const baseId = currentId.replace(/_[LS]$/, ''); // Remove existing suffix
+                        csvData[index]._topicId = baseId + (this.value === 'Long' ? '_L' : '_S');
+
+                        // Update the displayed ID
+                        const idSpan = tr.querySelector('.topic-id');
+                        if (idSpan) {
+                            idSpan.textContent = csvData[index]._topicId;
                         }
 
-                        input.addEventListener('change', function() {
-                            let newValue = this.value;
-                            if (column === 'Schedule Date' && newValue) {
-                                // Format date nicely for display
-                                const date = new Date(newValue);
-                                newValue = date.toLocaleDateString();
-                            }
-                            csvData[index][column] = newValue;
-
-                            // Update the display
-                            inputWrapper.innerHTML = '';
-                            const newCellContent = createCellContent(newValue, column);
-                            inputWrapper.appendChild(newCellContent);
-
-                            // Save to localStorage
-                            saveToLocalStorage();
-                        });
-
-                        input.addEventListener('blur', function() {
-                            if (!this.value) {
-                                // If no value selected, restore original content
-                                inputWrapper.innerHTML = '';
-                                inputWrapper.appendChild(cellContent);
-                            }
-                        });
-
-                        // Replace content with input
-                        inputWrapper.innerHTML = '';
-                        inputWrapper.appendChild(input);
-                        input.focus();
-                        if (input.type === 'date') {
-                            input.showPicker();
-                        }
+                        saveToLocalStorage();
                     });
 
-                    td.appendChild(inputWrapper);
+                    selectWrapper.appendChild(select);
+                    td.appendChild(selectWrapper);
                 } else {
                     // Regular editable text columns
                     const editableDiv = document.createElement('div');
@@ -976,13 +963,14 @@ Format your response as JSON with this exact structure:
 
                 csvData = parseCSV(csvText);
                 const fileSize = (file.size / 1024).toFixed(2);
-                const rowCount = csvData.length;
+                const originalRowCount = Math.floor(csvData.length / 2); // Each topic creates 2 entries
+                const totalEntries = csvData.length;
 
                 fileInfo.innerHTML = `
                     <div style="text-align: left;">
                         <span style="color: #008000; font-weight: bold;">SUCCESS: Valid CSV format</span><br>
                         <span style="color: var(--text-primary);">File: ${file.name} (${fileSize} KB)</span><br>
-                        <span style="color: var(--text-secondary);">Topics: ${rowCount} rows</span>
+                        <span style="color: var(--text-secondary);">Topics: ${originalRowCount} topics → ${totalEntries} entries (Long + Shorts)</span>
                     </div>
                 `;
                 fileInfo.classList.add('show');
@@ -996,7 +984,8 @@ Format your response as JSON with this exact structure:
 
                 console.log('CSV validated successfully:', {
                     headers: headers,
-                    rowCount: rowCount,
+                    originalTopics: originalRowCount,
+                    totalEntries: totalEntries,
                     fileSize: fileSize
                 });
             };
@@ -1012,7 +1001,6 @@ Format your response as JSON with this exact structure:
         // Add selected topics to processing queue with full data
         selectedTopics.forEach(topicData => {
             const processingItem = createProcessingItem(topicData);
-            processingItem.fullData = topicData; // Store complete topic data for potential restoration
             processingData.push(processingItem);
         });
 

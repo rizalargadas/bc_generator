@@ -189,6 +189,7 @@ main {
     font-size: 14px;
     color: var(--text-secondary);
     font-weight: 700;
+    margin-right: 20px;
 }
 
 .action-buttons {
@@ -543,6 +544,7 @@ main {
     font-size: 14px;
     color: var(--text-secondary);
     font-weight: 700;
+    margin-right: 20px;
 }
 
 .processing-action-buttons {
@@ -723,4 +725,25 @@ main {
     background: #ff6b6b;
     color: white;
     border: 1px solid #ff5252;
+}
+
+/* YT Type dropdown styling */
+.select-wrapper {
+    width: 100%;
+}
+
+.yt-type-select {
+    width: 100%;
+    padding: 4px 8px;
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: 14px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.yt-type-select:focus {
+    outline: none;
+    border-color: var(--accent);
 }
