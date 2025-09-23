@@ -1481,6 +1481,73 @@ Format your response as JSON with this exact structure:
         return 'status-waiting';
     }
 
+    // Check thumbnail status for a processing item (for UI display)
+    async function checkThumbnailStatus(outputDir, thumbnailTd) {
+        try {
+            const { ipcRenderer } = require('electron');
+            const result = await ipcRenderer.invoke('check-thumbnail', { outputDir });
+
+            if (result.success) {
+                if (result.hasThumbnail) {
+                    thumbnailTd.innerHTML = `<span class="status ready">Ready</span>`;
+                } else {
+                    thumbnailTd.innerHTML = `<span class="status not-ready">Not Ready</span>`;
+                }
+            } else {
+                thumbnailTd.innerHTML = `<span class="status error">Error</span>`;
+            }
+        } catch (error) {
+            console.error('Error checking thumbnail status:', error);
+            thumbnailTd.innerHTML = `<span class="status error">Error</span>`;
+        }
+    }
+
+    // Check thumbnail status for a processing item (for logic)
+    async function checkItemThumbnail(outputDir) {
+        try {
+            if (!outputDir) return { success: false, hasThumbnail: false };
+
+            const { ipcRenderer } = require('electron');
+            const result = await ipcRenderer.invoke('check-thumbnail', { outputDir });
+            return result;
+        } catch (error) {
+            console.error('Error checking item thumbnail:', error);
+            return { success: false, hasThumbnail: false };
+        }
+    }
+
+    // Update posting status based on all prerequisites
+    async function updatePostingStatus(item, postingTd) {
+        try {
+            // Check all prerequisites
+            const scriptReady = item.script === 'done';
+            const imageReady = item.image && (item.image === 'done' || item.image.includes('done'));
+            const voiceReady = item.voiceOvers === 'done';
+            const videoReady = item.video === 'done';
+
+            // Check thumbnail status
+            const thumbnailResult = await checkItemThumbnail(item.outputDir);
+            const thumbnailReady = thumbnailResult && thumbnailResult.hasThumbnail;
+
+            if (scriptReady && imageReady && voiceReady && videoReady && thumbnailReady) {
+                postingTd.innerHTML = `<span class="status ready">ready to schedule</span>`;
+            } else {
+                const missing = [];
+                if (!scriptReady) missing.push('script');
+                if (!imageReady) missing.push('images');
+                if (!voiceReady) missing.push('voice');
+                if (!videoReady) missing.push('video');
+                if (!thumbnailReady) missing.push('thumbnail');
+
+                const waitingText = `waiting: ${missing.join(', ')}`;
+                postingTd.innerHTML = `<span class="status waiting">${waitingText}</span>`;
+            }
+        } catch (error) {
+            console.error('Error updating posting status:', error);
+            postingTd.innerHTML = `<span class="status error">Error</span>`;
+        }
+    }
+
     function populateProcessingTable() {
         processingTable.innerHTML = '';
         selectedProcessingRows.clear(); // Clear selection when repopulating
@@ -1570,9 +1637,23 @@ Format your response as JSON with this exact structure:
             videoTd.innerHTML = `<span class="status ${getStatusClass(item.video)}">${item.video}</span>`;
             tr.appendChild(videoTd);
 
+            const thumbnailTd = document.createElement('td');
+            thumbnailTd.innerHTML = `<span class="status checking">checking...</span>`;
+            tr.appendChild(thumbnailTd);
+
+            // Check thumbnail status asynchronously
+            if (item.outputDir) {
+                checkThumbnailStatus(item.outputDir, thumbnailTd);
+            } else {
+                thumbnailTd.innerHTML = `<span class="status not-ready">Not Ready</span>`;
+            }
+
             const postingTd = document.createElement('td');
-            postingTd.innerHTML = `<span class="status ${getStatusClass(item.posting)}">${item.posting}</span>`;
+            postingTd.innerHTML = `<span class="status checking">checking...</span>`;
             tr.appendChild(postingTd);
+
+            // Check posting readiness asynchronously
+            updatePostingStatus(item, postingTd);
 
             // Create folder cell
             const folderTd = document.createElement('td');
@@ -2738,8 +2819,11 @@ Format your response as JSON with this exact structure:
                         console.log(`⏳ ${item.topic}: No video files found, status reset to waiting`);
                     }
 
-                    // Update posting status
-                    if (status.hasScript && status.imageCount > 0 && status.audioCount > 0 && status.hasVideo) {
+                    // Update posting status - now includes thumbnail check
+                    const thumbnailResult = await checkItemThumbnail(item.outputDir);
+                    const hasThumbnail = thumbnailResult && thumbnailResult.hasThumbnail;
+
+                    if (status.hasScript && status.imageCount > 0 && status.audioCount > 0 && status.hasVideo && hasThumbnail) {
                         item.posting = 'ready to schedule';
                         console.log(`🚀 ${item.topic}: Ready for posting - all assets complete`);
                     } else {
@@ -2748,6 +2832,8 @@ Format your response as JSON with this exact structure:
                         if (status.imageCount === 0) missing.push('images');
                         if (status.audioCount === 0) missing.push('audio');
                         if (!status.hasVideo) missing.push('video');
+                        if (!hasThumbnail) missing.push('thumbnail');
+                        item.posting = `waiting: ${missing.join(', ')}`;
                         console.log(`⏳ ${item.topic}: Waiting for: [${missing.join(', ')}]`);
                     }
                 } else {

@@ -727,6 +727,36 @@ main {
     border: 1px solid #ff5252;
 }
 
+.status.ready {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status.not-ready {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.status.checking {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+
+.status.error {
+    background: #ff6b6b;
+    color: white;
+    border: 1px solid #ff5252;
+}
+
+.status.waiting {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
 /* YT Type dropdown styling */
 .select-wrapper {
     width: 100%;

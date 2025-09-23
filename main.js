@@ -331,6 +331,26 @@ ipcMain.handle('open-folder', async (event, { folderPath }) => {
     }
 });
 
+// Check for thumbnail file in topic folder
+ipcMain.handle('check-thumbnail', async (event, { outputDir }) => {
+    try {
+        const thumbnailPng = path.join(outputDir, 'thumbnail.png');
+        const thumbnailJpg = path.join(outputDir, 'thumbnail.jpg');
+
+        const hasThumbnail = fs.existsSync(thumbnailPng) || fs.existsSync(thumbnailJpg);
+
+        return {
+            success: true,
+            hasThumbnail,
+            thumbnailPath: fs.existsSync(thumbnailPng) ? thumbnailPng :
+                          fs.existsSync(thumbnailJpg) ? thumbnailJpg : null
+        };
+    } catch (error) {
+        console.error('Error checking thumbnail:', error);
+        return { success: false, error: error.message };
+    }
+});
+
 // Generate voice using ElevenLabs SDK
 ipcMain.handle('generate-voice', async (event, { text, apiKey, voiceId, sceneNumber }) => {
     try {
