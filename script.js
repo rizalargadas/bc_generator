@@ -265,9 +265,17 @@ Write an immersive, narrative-driven YouTube ${isShort ? 'Shorts' : 'Long-form'}
 
 Short Info About the Topic: ${info}
 
-Write a full script first as a numbered list of ${sceneCount} distinct scenes, each with a title and target word count to collectively total ~${targetWords} words. ${isShort ? 'For Shorts, focus on immediate hook and rapid pacing.' : 'Use suspenseful but calm, authoritative language to build curiosity and maintain an unsettling yet factual tone.'} After presenting the outline,
+🎯 CRITICAL WORD COUNT REQUIREMENT:
+- The TOTAL combined script content across ALL scenes must be EXACTLY ${targetWords} words (±50 words tolerance)
+- Each scene should contain approximately ${Math.floor(targetWords / sceneCount)} words of actual narration script
+- Only count words in the "script" field - titles and image prompts don't count toward word limit
+- Write FULL, COMPLETE scripts - not summaries or outlines
 
-Full script should conclude with the specified haunting/hooky outro line/scene. Stay strictly within verified facts and note if the topic warrants a multi-part series. Your goal: craft an unforgettable, cinematic narrative experience that keeps viewers watching to the end — and eager for the next dark chapter.
+Create ${sceneCount} distinct scenes with DETAILED, COMPLETE narration. ${isShort ? 'For Shorts, focus on immediate hook and rapid pacing.' : 'Use suspenseful but calm, authoritative language to build curiosity and maintain an unsettling yet factual tone.'}
+
+The script should conclude with a haunting/hooky outro line/scene. Stay strictly within verified facts and note if the topic warrants a multi-part series. Your goal: craft an unforgettable, cinematic narrative experience that keeps viewers watching to the end — and eager for the next dark chapter.
+
+⚠️ MANDATORY WORD COUNT CHECK: Before submitting your response, manually count the words in ALL "script" fields combined. The total must be ${targetWords} words (±50). If you're short, add more descriptive detail, atmosphere, background information, and narrative depth. If you're over, trim unnecessary words while maintaining impact and flow.
 
 For each scene's image prompt, ensure they are:
 - Written in clear, descriptive English
@@ -278,13 +286,15 @@ For each scene's image prompt, ensure they are:
 
 IMPORTANT: Use only plain ASCII text. Avoid special characters, smart quotes, em-dashes, or any Unicode characters. Use simple punctuation only (periods, commas, apostrophes, hyphens, quotes).
 
+🎯 FINAL REMINDER: The combined word count of ALL "script" fields must total ${targetWords} words (±50). Count them before submitting!
+
 Format your response as JSON with this exact structure:
 {
   "scenes": [
     {
       "scene_number": 1,
       "title": "Scene Title",
-      "script": "The full script text for this scene...",
+      "script": "The COMPLETE full script narration for this scene - approximately ${Math.floor(targetWords / sceneCount)} words",
       "image_prompt": "Detailed image generation prompt for this scene"
     }
   ]
@@ -328,6 +338,24 @@ Format your response as JSON with this exact structure:
                         title: cleanText(scene.title),
                         image_prompt: cleanText(scene.image_prompt)
                     }));
+
+                    // Verify word count
+                    const totalWords = parsedData.scenes.reduce((total, scene) => {
+                        const wordCount = scene.script ? scene.script.split(/\s+/).filter(word => word.length > 0).length : 0;
+                        return total + wordCount;
+                    }, 0);
+
+                    console.log(`📊 Script word count verification:`);
+                    console.log(`- Target: ${targetWords} words`);
+                    console.log(`- Actual: ${totalWords} words`);
+                    console.log(`- Difference: ${totalWords - targetWords} words (${((totalWords / targetWords) * 100).toFixed(1)}% of target)`);
+
+                    const tolerance = Math.max(50, targetWords * 0.1); // 10% tolerance or 50 words minimum
+                    if (Math.abs(totalWords - targetWords) > tolerance) {
+                        console.warn(`⚠️ Word count significantly off target! Expected ~${targetWords}, got ${totalWords}`);
+                    } else {
+                        console.log(`✅ Word count within acceptable range`);
+                    }
                 }
                 return parsedData;
             } catch (parseError) {
@@ -1290,6 +1318,52 @@ Format your response as JSON with this exact structure:
         }
     }
 
+    function clearPendingTopics() {
+        try {
+            // Preserve API keys and all other settings
+            const apiKey = localStorage.getItem('bc_generator_openai_key');
+            const elevenlabsKey = localStorage.getItem('bc_generator_elevenlabs_key');
+            const voiceId = localStorage.getItem('bc_generator_elevenlabs_voice_id');
+            const lateKey = localStorage.getItem('bc_generator_late_key');
+            const leonardoKey = localStorage.getItem('bc_generator_leonardo_key');
+            const leonardoModel = localStorage.getItem('bc_generator_leonardo_model');
+            const leonardoAlchemy = localStorage.getItem('bc_generator_leonardo_alchemy');
+            const scriptWordCount = localStorage.getItem('bc_generator_script_word_count');
+
+            // Preserve processing data and related settings
+            const processingData = localStorage.getItem('bc_generator_processing');
+            const nextId = localStorage.getItem('bc_generator_next_id');
+            const usedIds = localStorage.getItem('bc_generator_used_ids');
+            const pausedItems = localStorage.getItem('bc_generator_paused_items');
+
+            // Only remove pending topics data
+            localStorage.removeItem('bc_generator_data');
+
+            // Restore all preserved data
+            if (apiKey) localStorage.setItem('bc_generator_openai_key', apiKey);
+            if (elevenlabsKey) localStorage.setItem('bc_generator_elevenlabs_key', elevenlabsKey);
+            if (voiceId) localStorage.setItem('bc_generator_elevenlabs_voice_id', voiceId);
+            if (lateKey) localStorage.setItem('bc_generator_late_key', lateKey);
+            if (leonardoKey) localStorage.setItem('bc_generator_leonardo_key', leonardoKey);
+            if (leonardoModel) localStorage.setItem('bc_generator_leonardo_model', leonardoModel);
+            if (leonardoAlchemy) localStorage.setItem('bc_generator_leonardo_alchemy', leonardoAlchemy);
+            if (scriptWordCount) localStorage.setItem('bc_generator_script_word_count', scriptWordCount);
+
+            // Restore processing-related data
+            if (processingData) localStorage.setItem('bc_generator_processing', processingData);
+            if (nextId) localStorage.setItem('bc_generator_next_id', nextId);
+            if (usedIds) localStorage.setItem('bc_generator_used_ids', usedIds);
+            if (pausedItems) localStorage.setItem('bc_generator_paused_items', pausedItems);
+
+            // Update timestamp
+            localStorage.setItem('bc_generator_timestamp', new Date().toISOString());
+
+            console.log('✅ Pending topics cleared, processing data preserved');
+        } catch (e) {
+            console.warn('Could not clear pending topics from localStorage:', e);
+        }
+    }
+
     function updateApiStatus(status) {
         const statusText = apiStatus.querySelector('.status-text');
 
@@ -2000,29 +2074,26 @@ Format your response as JSON with this exact structure:
     });
 
     clearStorageBtn.addEventListener('click', function() {
-        const confirmMessage = 'Are you sure you want to clear all saved data from memory? This will remove all topics and cannot be undone.';
+        const confirmMessage = 'Are you sure you want to clear all Pending Topics from memory? This will only remove topics that haven\'t been moved to Processing yet. Items currently in Processing will be preserved.';
 
         if (confirm(confirmMessage)) {
-            clearLocalStorage();
+            clearPendingTopics();
             csvData = [];
-            processingData = [];
-            nextProcessingId = 1;
-            usedTopicIds.clear();
-            pausedItems.clear();
-            longScriptWordCount = 6000; // Reset to default
+            // Don't clear processingData - preserve items in Processing
+            // Don't reset nextProcessingId - keep sequence for new items
+            // Don't clear usedTopicIds - preserve to prevent ID conflicts
+            // Don't clear pausedItems - preserve pause states for processing items
             selectedRows.clear();
             populateTable();
             populateProcessingTable();
             updateSelectionCount();
 
-            // Reset UI elements
-            longScriptWordsInput.value = longScriptWordCount;
-            currentWordCountSpan.textContent = longScriptWordCount;
+            // Don't reset UI elements - keep settings preserved
 
             fileInfo.innerHTML = `
                 <div style="text-align: center;">
-                    <span style="color: #ff8800; font-weight: bold;">MEMORY CLEARED</span><br>
-                    <span style="color: var(--text-secondary);">All saved data has been removed</span>
+                    <span style="color: #ff8800; font-weight: bold;">PENDING TOPICS CLEARED</span><br>
+                    <span style="color: var(--text-secondary);">Pending topics removed, processing items preserved</span>
                 </div>
             `;
             fileInfo.classList.add('show');

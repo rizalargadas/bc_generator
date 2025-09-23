@@ -10,7 +10,8 @@
       "Bash(npm install:*)",
       "Bash(npm start)",
       "Bash(git reset:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(npm uninstall:*)"
     ],
     "deny": [],
     "ask": []
