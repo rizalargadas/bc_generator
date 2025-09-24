@@ -249,7 +249,8 @@ The scenes should match the original scene numbers but with shortened, more dyna
         // Check if this item is paused
         const topicId = topic.replace(/[^a-zA-Z0-9]/g, '_') + (ytType === 'Shorts' ? '_S' : '_L');
         if (pausedItems.has(topicId)) {
-            throw new Error('Script generation paused by user');
+            console.log(`⏸️ Script generation paused for ${topic}`);
+            return { scenes: [], paused: true }; // Return a paused indicator
         }
 
         const isShort = ytType === 'Shorts';
@@ -542,7 +543,11 @@ Format your response as JSON with this exact structure:
 
         // Check if this item is paused
         if (pausedItems.has(processingItem.id)) {
-            throw new Error('Voice generation paused by user');
+            console.log(`⏸️ Voice generation paused for ${processingItem.topic}`);
+            processingItem.voiceOvers = 'paused';
+            populateProcessingTable();
+            saveToLocalStorage();
+            return; // Exit gracefully without error
         }
 
         if (!processingItem.outputDir) {
@@ -612,7 +617,11 @@ Format your response as JSON with this exact structure:
             for (const scene of scenes) {
                 // Check if paused during loop
                 if (pausedItems.has(processingItem.id)) {
-                    throw new Error('Voice generation paused by user during processing');
+                    console.log(`⏸️ Voice generation paused for ${processingItem.topic} at scene ${scene.sceneNumber}`);
+                    processingItem.voiceOvers = `generating... (${i}/${totalScenes} done - paused)`;
+                    populateProcessingTable();
+                    saveToLocalStorage();
+                    return; // Exit gracefully without error
                 }
 
                 const sceneNumber = parseInt(scene.sceneNumber);
@@ -741,7 +750,11 @@ Format your response as JSON with this exact structure:
 
         // Check if this item is paused
         if (pausedItems.has(processingItem.id)) {
-            throw new Error('Image generation paused by user');
+            console.log(`⏸️ Image generation paused for ${processingItem.topic}`);
+            processingItem.image = 'paused';
+            populateProcessingTable();
+            saveToLocalStorage();
+            return; // Exit gracefully without error
         }
 
         // Handle Shorts videos by copying images from Long video
@@ -871,7 +884,11 @@ Format your response as JSON with this exact structure:
             for (let i = 0; i < scenes.length; i++) {
                 // Check if paused during loop
                 if (pausedItems.has(processingItem.id)) {
-                    throw new Error('Image generation paused by user during processing');
+                    console.log(`⏸️ Image generation paused for ${processingItem.topic} at scene ${i + 1}`);
+                    processingItem.image = `${i}/${totalScenes} done (paused)`;
+                    populateProcessingTable();
+                    saveToLocalStorage();
+                    return; // Exit gracefully without error
                 }
 
                 const scene = scenes[i];
@@ -1156,6 +1173,15 @@ Format your response as JSON with this exact structure:
             } else {
                 // For Long videos, generate new script
                 scriptData = await generateScript(processingItem.topic, processingItem.fullData.Info, processingItem.ytType);
+            }
+
+            // Check if script generation was paused
+            if (scriptData.paused) {
+                processingItem.script = 'paused';
+                populateProcessingTable();
+                saveToLocalStorage();
+                console.log(`Script generation paused for ${processingItem.topic}`);
+                return; // Exit gracefully
             }
 
             const result = await generateCSV(processingItem.topic, processingItem.id, scriptData, processingItem.ytType);
@@ -1571,7 +1597,7 @@ Format your response as JSON with this exact structure:
                 if (result.hasThumbnail) {
                     thumbnailTd.innerHTML = `<span class="status ready">Ready</span>`;
                 } else {
-                    thumbnailTd.innerHTML = `<span class="status not-ready">Not Ready</span>`;
+                    thumbnailTd.innerHTML = `<span class="status waiting">waiting...</span>`;
                 }
             } else {
                 thumbnailTd.innerHTML = `<span class="status error">Error</span>`;
@@ -1619,8 +1645,7 @@ Format your response as JSON with this exact structure:
                 if (!videoReady) missing.push('video');
                 if (!thumbnailReady) missing.push('thumbnail');
 
-                const waitingText = `waiting: ${missing.join(', ')}`;
-                postingTd.innerHTML = `<span class="status waiting">${waitingText}</span>`;
+                postingTd.innerHTML = `<span class="status waiting">waiting...</span>`;
             }
         } catch (error) {
             console.error('Error updating posting status:', error);
@@ -1684,7 +1709,7 @@ Format your response as JSON with this exact structure:
             } else if (item.script === 'waiting') {
                 // Waiting for Long video to complete
                 scriptTd.innerHTML = `
-                    <span class="status waiting" title="Waiting for Long video script to complete">waiting for Long</span>
+                    <span class="status waiting">waiting...</span>
                 `;
             } else {
                 scriptTd.innerHTML = `<span class="status ${getStatusClass(item.script)}">${item.script}</span>`;
@@ -2918,7 +2943,7 @@ Format your response as JSON with this exact structure:
                         if (status.audioCount === 0) missing.push('audio');
                         if (!status.hasVideo) missing.push('video');
                         if (!hasThumbnail) missing.push('thumbnail');
-                        item.posting = `waiting: ${missing.join(', ')}`;
+                        item.posting = 'waiting...';
                         console.log(`⏳ ${item.topic}: Waiting for: [${missing.join(', ')}]`);
                     }
                 } else {
