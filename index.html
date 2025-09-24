@@ -19,6 +19,7 @@
             <button class="tab-btn active" data-tab="upload">Upload</button>
             <button class="tab-btn" data-tab="pending">Pending Topics</button>
             <button class="tab-btn" data-tab="processing">Processing</button>
+            <button class="tab-btn" data-tab="calendar">Calendar</button>
             <button class="tab-btn" data-tab="settings">Settings</button>
         </nav>
 
@@ -126,6 +127,52 @@
                         </table>
                         <div class="no-data" id="no-processing-data">
                             No videos in processing queue. Select topics and click "Generate Videos" to start.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="calendar-tab">
+                <div class="calendar-section">
+                    <div class="calendar-header">
+                        <h2>Content Calendar</h2>
+                        <p class="calendar-subtitle">View and manage your scheduled posts (Manila, Philippines timezone)</p>
+                    </div>
+
+                    <div class="calendar-controls">
+                        <button class="btn-secondary" id="prev-month">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="15 18 9 12 15 6"></polyline>
+                            </svg>
+                        </button>
+                        <div class="current-month" id="current-month">January 2024</div>
+                        <button class="btn-secondary" id="next-month">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
+                        <button class="btn-secondary" id="today-btn">Today</button>
+                    </div>
+
+                    <div class="calendar-grid" id="calendar-grid">
+                        <div class="calendar-weekdays">
+                            <div class="weekday">Sun</div>
+                            <div class="weekday">Mon</div>
+                            <div class="weekday">Tue</div>
+                            <div class="weekday">Wed</div>
+                            <div class="weekday">Thu</div>
+                            <div class="weekday">Fri</div>
+                            <div class="weekday">Sat</div>
+                        </div>
+                        <div class="calendar-days" id="calendar-days">
+                            <!-- Calendar days will be generated here -->
+                        </div>
+                    </div>
+
+                    <div class="scheduled-posts-panel">
+                        <h3>Scheduled Posts</h3>
+                        <div id="selected-day-posts">
+                            <p class="no-posts-message">Select a day to view scheduled posts</p>
                         </div>
                     </div>
                 </div>

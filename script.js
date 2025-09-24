@@ -58,6 +58,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const clearStorageBtn = document.getElementById('clear-storage-btn');
     const selectAllCheckbox = document.getElementById('select-all-checkbox');
 
+    // Calendar elements
+    const calendarDays = document.getElementById('calendar-days');
+    const currentMonthElement = document.getElementById('current-month');
+    const prevMonthBtn = document.getElementById('prev-month');
+    const nextMonthBtn = document.getElementById('next-month');
+    const todayBtn = document.getElementById('today-btn');
+    const selectedDayPosts = document.getElementById('selected-day-posts');
+
     let csvData = [];
     let selectedRows = new Set();
     let processingData = [];
@@ -73,6 +81,11 @@ document.addEventListener('DOMContentLoaded', function() {
     let selectedLeonardoModel = 'de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3'; // Default to Leonardo Phoenix 1.0
     let leonardoAlchemyEnabled = false; // Default to disabled to save credits
     let longScriptWordCount = 6000; // Default word count for Long videos
+
+    // Calendar state
+    let currentDate = new Date();
+    let selectedDate = null;
+    let scheduledPosts = []; // This will store scheduled posts data
 
     // Clean text function to remove special characters
     function cleanText(text) {
@@ -3150,4 +3163,229 @@ function toggleApiHelp() {
         arrow.classList.remove('expanded');
         arrow.textContent = '▼';
     }
-}
+
+    // Calendar Functions
+    function getManilaTime() {
+        // Get current time in Manila timezone
+        return new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Manila"}));
+    }
+
+    function renderCalendar() {
+        if (!calendarDays) return; // Exit if calendar elements not found
+
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+
+        // Update month display
+        const monthNames = ["January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"];
+        currentMonthElement.textContent = `${monthNames[month]} ${year}`;
+
+        // Clear previous calendar
+        calendarDays.innerHTML = '';
+
+        // Get first day of month and days in month
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+        // Get today's date in Manila timezone
+        const manilaToday = getManilaTime();
+        const todayDate = manilaToday.getDate();
+        const todayMonth = manilaToday.getMonth();
+        const todayYear = manilaToday.getFullYear();
+
+        // Add previous month's trailing days
+        for (let i = firstDay - 1; i >= 0; i--) {
+            const dayElement = createDayElement(daysInPrevMonth - i, 'other-month',
+                new Date(year, month - 1, daysInPrevMonth - i));
+            calendarDays.appendChild(dayElement);
+        }
+
+        // Add current month's days
+        for (let day = 1; day <= daysInMonth; day++) {
+            const date = new Date(year, month, day);
+            const isToday = day === todayDate && month === todayMonth && year === todayYear;
+            const dayElement = createDayElement(day, isToday ? 'today' : '', date);
+
+            // Check if this day has scheduled posts
+            const postsCount = getPostsForDay(date);
+            if (postsCount > 0) {
+                dayElement.classList.add('has-posts');
+                const indicator = document.createElement('div');
+                indicator.className = 'post-indicator';
+                dayElement.appendChild(indicator);
+
+                const countElement = document.createElement('div');
+                countElement.className = 'day-posts-count';
+                countElement.textContent = `${postsCount} post${postsCount > 1 ? 's' : ''}`;
+                dayElement.appendChild(countElement);
+            }
+
+            calendarDays.appendChild(dayElement);
+        }
+
+        // Add next month's leading days
+        const totalCells = calendarDays.children.length;
+        const cellsNeeded = totalCells > 35 ? 42 : 35;
+        let nextMonthDay = 1;
+        for (let i = totalCells; i < cellsNeeded; i++) {
+            const dayElement = createDayElement(nextMonthDay++, 'other-month',
+                new Date(year, month + 1, nextMonthDay - 1));
+            calendarDays.appendChild(dayElement);
+        }
+    }
+
+    function createDayElement(day, className, date) {
+        const dayElement = document.createElement('div');
+        dayElement.className = `calendar-day ${className}`;
+        dayElement.dataset.date = date.toISOString();
+
+        const dayNumber = document.createElement('div');
+        dayNumber.className = 'day-number';
+        dayNumber.textContent = day;
+        dayElement.appendChild(dayNumber);
+
+        dayElement.addEventListener('click', function() {
+            // Remove previous selection
+            document.querySelectorAll('.calendar-day.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
+
+            // Add selection to clicked day
+            this.classList.add('selected');
+            selectedDate = new Date(this.dataset.date);
+
+            // Display posts for selected day
+            displayPostsForDay(selectedDate);
+        });
+
+        return dayElement;
+    }
+
+    function getPostsForDay(date) {
+        // Filter scheduled posts for the given date
+        const dateStr = date.toDateString();
+        return scheduledPosts.filter(post => {
+            const postDate = new Date(post.scheduledTime);
+            return postDate.toDateString() === dateStr;
+        }).length;
+    }
+
+    function displayPostsForDay(date) {
+        const dateStr = date.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            timeZone: 'Asia/Manila'
+        });
+
+        const dayPosts = scheduledPosts.filter(post => {
+            const postDate = new Date(post.scheduledTime);
+            return postDate.toDateString() === date.toDateString();
+        });
+
+        if (dayPosts.length === 0) {
+            selectedDayPosts.innerHTML = `
+                <p class="no-posts-message">No posts scheduled for ${dateStr}</p>
+            `;
+        } else {
+            let html = `<h4 style="margin-bottom: 15px;">${dateStr}</h4>`;
+            dayPosts.sort((a, b) => new Date(a.scheduledTime) - new Date(b.scheduledTime));
+
+            dayPosts.forEach(post => {
+                const time = new Date(post.scheduledTime).toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true,
+                    timeZone: 'Asia/Manila'
+                });
+
+                html += `
+                    <div class="scheduled-post-item">
+                        <div class="post-time">${time}</div>
+                        <div class="post-title">${post.title}</div>
+                        <span class="post-platform">${post.platform}</span>
+                        ${post.status ? `<span class="post-platform">${post.status}</span>` : ''}
+                    </div>
+                `;
+            });
+
+            selectedDayPosts.innerHTML = html;
+        }
+    }
+
+    // Calendar event listeners
+    if (prevMonthBtn) {
+        prevMonthBtn.addEventListener('click', function() {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            renderCalendar();
+        });
+    }
+
+    if (nextMonthBtn) {
+        nextMonthBtn.addEventListener('click', function() {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            renderCalendar();
+        });
+    }
+
+    if (todayBtn) {
+        todayBtn.addEventListener('click', function() {
+            currentDate = getManilaTime();
+            renderCalendar();
+
+            // Auto-select today
+            const todayElement = document.querySelector('.calendar-day.today');
+            if (todayElement) {
+                todayElement.click();
+            }
+        });
+    }
+
+    // Load scheduled posts from localStorage
+    function loadScheduledPosts() {
+        const saved = localStorage.getItem('bc_generator_scheduled_posts');
+        if (saved) {
+            scheduledPosts = JSON.parse(saved);
+        }
+        renderCalendar();
+    }
+
+    // Save scheduled posts to localStorage
+    function saveScheduledPosts() {
+        localStorage.setItem('bc_generator_scheduled_posts', JSON.stringify(scheduledPosts));
+    }
+
+    // Example function to add a scheduled post
+    function addScheduledPost(title, platform, scheduledTime, status = 'scheduled') {
+        const post = {
+            id: Date.now(),
+            title,
+            platform,
+            scheduledTime,
+            status,
+            addedAt: new Date().toISOString()
+        };
+        scheduledPosts.push(post);
+        saveScheduledPosts();
+        renderCalendar();
+        return post;
+    }
+
+    // Initialize calendar when tab is shown
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            if (this.dataset.tab === 'calendar') {
+                loadScheduledPosts();
+            }
+        });
+    });
+
+    // Initialize calendar on page load if calendar tab is active
+    if (document.querySelector('.tab-btn[data-tab="calendar"].active')) {
+        loadScheduledPosts();
+    }
+
+});
