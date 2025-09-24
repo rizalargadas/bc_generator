@@ -1584,6 +1584,8 @@ Format your response as JSON with this exact structure:
         if (status === 'waiting...' || status === 'waiting') return 'status-waiting';
         if (status === 'done') return 'status-done';
         if (status === 'ready to schedule') return 'status-ready';
+        if (status === 'failed') return 'status-failed';
+        if (status === 'paused') return 'status-paused';
         return 'status-waiting';
     }
 
@@ -1711,6 +1713,12 @@ Format your response as JSON with this exact structure:
                 scriptTd.innerHTML = `
                     <span class="status waiting">waiting...</span>
                 `;
+            } else if (item.script === 'failed') {
+                // Show retry button for failed script
+                scriptTd.innerHTML = `
+                    <span class="status failed">${item.script}</span>
+                    <button class="btn-mini" onclick="retryScriptGeneration(${index})" title="Retry script generation">Retry</button>
+                `;
             } else {
                 scriptTd.innerHTML = `<span class="status ${getStatusClass(item.script)}">${item.script}</span>`;
             }
@@ -1734,17 +1742,39 @@ Format your response as JSON with this exact structure:
                 } else {
                     imageTd.innerHTML = `<span class="status ${getStatusClass(item.image)}">${item.image}</span>`;
                 }
+            } else if (item.image === 'failed') {
+                // Show retry button for failed images
+                imageTd.innerHTML = `
+                    <span class="status failed">${item.image}</span>
+                    <button class="btn-mini" onclick="retryImageGeneration(${index})" title="Retry image generation">Retry</button>
+                `;
             } else {
                 imageTd.innerHTML = `<span class="status ${getStatusClass(item.image)}">${item.image}</span>`;
             }
             tr.appendChild(imageTd);
 
             const voiceTd = document.createElement('td');
-            voiceTd.innerHTML = `<span class="status ${getStatusClass(item.voiceOvers)}">${item.voiceOvers}</span>`;
+            if (item.voiceOvers === 'failed') {
+                // Show retry button for failed voice overs
+                voiceTd.innerHTML = `
+                    <span class="status failed">${item.voiceOvers}</span>
+                    <button class="btn-mini" onclick="retryVoiceGeneration(${index})" title="Retry voice generation">Retry</button>
+                `;
+            } else {
+                voiceTd.innerHTML = `<span class="status ${getStatusClass(item.voiceOvers)}">${item.voiceOvers}</span>`;
+            }
             tr.appendChild(voiceTd);
 
             const videoTd = document.createElement('td');
-            videoTd.innerHTML = `<span class="status ${getStatusClass(item.video)}">${item.video}</span>`;
+            if (item.video === 'failed') {
+                // Show retry button for failed video
+                videoTd.innerHTML = `
+                    <span class="status failed">${item.video}</span>
+                    <button class="btn-mini" onclick="retryVideoGeneration(${index})" title="Retry video generation">Retry</button>
+                `;
+            } else {
+                videoTd.innerHTML = `<span class="status ${getStatusClass(item.video)}">${item.video}</span>`;
+            }
             tr.appendChild(videoTd);
 
             const thumbnailTd = document.createElement('td');
@@ -2782,6 +2812,43 @@ Format your response as JSON with this exact structure:
             const item = processingData[index];
             console.log(`Retrying failed voice overs for ${item.topic}`);
             await generateVoiceOvers(item, true);  // true = retry only missing audio
+        }
+    };
+
+    // Retry failed script generation
+    window.retryScriptGeneration = async function(index) {
+        if (index >= 0 && index < processingData.length) {
+            const item = processingData[index];
+            console.log(`Retrying script generation for ${item.topic}`);
+            await processScriptGeneration(item, index);
+        }
+    };
+
+    // Retry failed image generation
+    window.retryImageGeneration = async function(index) {
+        if (index >= 0 && index < processingData.length) {
+            const item = processingData[index];
+            console.log(`Retrying image generation for ${item.topic}`);
+            await generateImages(item);
+        }
+    };
+
+    // Retry failed voice generation
+    window.retryVoiceGeneration = async function(index) {
+        if (index >= 0 && index < processingData.length) {
+            const item = processingData[index];
+            console.log(`Retrying voice generation for ${item.topic}`);
+            await generateVoiceOvers(item);
+        }
+    };
+
+    // Retry failed video generation
+    window.retryVideoGeneration = async function(index) {
+        if (index >= 0 && index < processingData.length) {
+            const item = processingData[index];
+            console.log(`Retrying video generation for ${item.topic}`);
+            // For now, just log - video generation logic to be implemented
+            alert('Video generation retry will be implemented in a future update');
         }
     };
 
