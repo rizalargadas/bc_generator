@@ -3147,22 +3147,21 @@ Format your response as JSON with this exact structure:
     loadFromLocalStorage();
     updateSelectionCount();
     updateProcessingSelectionCount();
-});
+    // Global function for API help dropdown toggle (exposed to window for inline onclick)
+    window.toggleApiHelp = function() {
+        const helpContent = document.getElementById('api-help-content');
+        const arrow = document.getElementById('api-help-arrow');
 
-// Global function for API help dropdown toggle
-function toggleApiHelp() {
-    const helpContent = document.getElementById('api-help-content');
-    const arrow = document.getElementById('api-help-arrow');
-
-    if (helpContent.style.display === 'none' || helpContent.style.display === '') {
-        helpContent.style.display = 'block';
-        arrow.classList.add('expanded');
-        arrow.textContent = '▲';
-    } else {
-        helpContent.style.display = 'none';
-        arrow.classList.remove('expanded');
-        arrow.textContent = '▼';
-    }
+        if (helpContent.style.display === 'none' || helpContent.style.display === '') {
+            helpContent.style.display = 'block';
+            arrow.classList.add('expanded');
+            arrow.textContent = '▲';
+        } else {
+            helpContent.style.display = 'none';
+            arrow.classList.remove('expanded');
+            arrow.textContent = '▼';
+        }
+    };
 
     // Calendar Functions
     function getManilaTime() {
