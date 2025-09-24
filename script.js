@@ -1094,6 +1094,15 @@ Format your response as JSON with this exact structure:
                     throw new Error(`Long video with ID ${longId} not found in processing data`);
                 }
 
+                // Check if Long video script is still being written
+                if (longItem.script === 'writing...' || longItem.script === 'pending') {
+                    // Set Shorts to waiting status
+                    processingItem.script = 'waiting';
+                    populateProcessingTable();
+                    console.log(`⏳ Shorts script set to 'waiting' - Long video script is still being generated`);
+                    return; // Exit without error - will be processed later
+                }
+
                 if (longItem.script !== 'done') {
                     throw new Error(`Long video script status is '${longItem.script}' - must be 'done' before generating Shorts script`);
                 }
@@ -1165,6 +1174,22 @@ Format your response as JSON with this exact structure:
 
                 console.log(`Script generated for ${processingItem.topic}`);
                 console.log(`Output directory: ${result.outputDir}`);
+
+                // If this was a Long video, check if there's a waiting Shorts
+                if (processingItem.ytType === 'Long') {
+                    const baseId = processingItem.id.replace('_L', '');
+                    const shortsId = baseId + '_S';
+                    const waitingShorts = processingData.find(item =>
+                        item.id === shortsId && item.script === 'waiting'
+                    );
+
+                    if (waitingShorts) {
+                        console.log(`📹 Found waiting Shorts for ${waitingShorts.topic}, starting script generation...`);
+                        const shortsIndex = processingData.indexOf(waitingShorts);
+                        // Start the Shorts script generation in the background
+                        setTimeout(() => processScriptGeneration(waitingShorts, shortsIndex), 100);
+                    }
+                }
 
                 // Automatically start image generation
                 console.log(`Auto-starting image generation for ${processingItem.topic}`);
@@ -1655,6 +1680,11 @@ Format your response as JSON with this exact structure:
                 scriptTd.innerHTML = `
                     <span class="status ${getStatusClass(item.script)}">${item.script}</span>
                     <button class="btn-mini" onclick="generateScriptForItem(${index})">Generate</button>
+                `;
+            } else if (item.script === 'waiting') {
+                // Waiting for Long video to complete
+                scriptTd.innerHTML = `
+                    <span class="status waiting" title="Waiting for Long video script to complete">waiting for Long</span>
                 `;
             } else {
                 scriptTd.innerHTML = `<span class="status ${getStatusClass(item.script)}">${item.script}</span>`;
