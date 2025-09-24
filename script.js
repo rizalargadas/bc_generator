@@ -288,6 +288,16 @@ IMPORTANT: Use only plain ASCII text. Avoid special characters, smart quotes, em
 
 🎯 FINAL REMINDER: The combined word count of ALL "script" fields must total ${targetWords} words (±50). Count them before submitting!
 
+Additionally, generate metadata for YouTube and social media:
+
+For ${isShort ? 'YouTube Shorts' : 'Long-form YouTube video'}:
+- YouTube Title: An engaging, click-worthy title (max 100 characters)
+- YouTube Description: A compelling description with key points, timestamps placeholder, and call-to-action (200-500 words)
+- YouTube Tags: Exactly 30 relevant, comma-separated tags for SEO
+
+${isShort ? `For TikTok/Instagram:
+- Social Caption: An engaging caption for TikTok/IG including relevant hashtags like #tiktok #instagram #shorts #mystery #truecrime etc (max 150 characters for optimal engagement)` : ''}
+
 Format your response as JSON with this exact structure:
 {
   "scenes": [
@@ -297,7 +307,13 @@ Format your response as JSON with this exact structure:
       "script": "The COMPLETE full script narration for this scene - approximately ${Math.floor(targetWords / sceneCount)} words",
       "image_prompt": "Detailed image generation prompt for this scene"
     }
-  ]
+  ],
+  "metadata": {
+    "youtube_title": "Engaging YouTube title",
+    "youtube_description": "Detailed YouTube description",
+    "youtube_tags": "tag1, tag2, tag3... (30 tags total)"${isShort ? `,
+    "social_caption": "TikTok/IG caption with hashtags"` : ''}
+  }
 }`;
 
         try {
@@ -357,6 +373,17 @@ Format your response as JSON with this exact structure:
                         console.log(`✅ Word count within acceptable range`);
                     }
                 }
+
+                // Clean metadata if present
+                if (parsedData.metadata) {
+                    parsedData.metadata = {
+                        youtube_title: cleanText(parsedData.metadata.youtube_title || ''),
+                        youtube_description: cleanText(parsedData.metadata.youtube_description || ''),
+                        youtube_tags: cleanText(parsedData.metadata.youtube_tags || ''),
+                        social_caption: cleanText(parsedData.metadata.social_caption || '')
+                    };
+                }
+
                 return parsedData;
             } catch (parseError) {
                 // Fallback: parse text response
@@ -408,16 +435,44 @@ Format your response as JSON with this exact structure:
         return { scenes };
     }
 
-    async function generateCSV(topic, topicId, scriptData) {
-        const headers = ['Scene #', 'Script for Voice Over', 'Image Generation Prompt'];
+    async function generateCSV(topic, topicId, scriptData, ytType = 'Long') {
+        const isShort = ytType === 'Shorts';
+
+        // Determine headers based on video type
+        const headers = isShort ?
+            ['Scene #', 'Script for Voice Over', 'Image Generation Prompt', 'YT Title', 'YT Description', 'YT Tags', 'TikTok/IG Caption'] :
+            ['Scene #', 'Script for Voice Over', 'Image Generation Prompt', 'YT Title', 'YT Description', 'YT Tags'];
+
         const rows = [headers];
 
-        scriptData.scenes.forEach(scene => {
-            rows.push([
+        // Add scene data rows
+        scriptData.scenes.forEach((scene, index) => {
+            const row = [
                 scene.scene_number,
                 scene.script.trim(),
                 scene.image_prompt
-            ]);
+            ];
+
+            // Add metadata only to the first row
+            if (index === 0 && scriptData.metadata) {
+                row.push(
+                    scriptData.metadata.youtube_title || '',
+                    scriptData.metadata.youtube_description || '',
+                    scriptData.metadata.youtube_tags || ''
+                );
+
+                if (isShort) {
+                    row.push(scriptData.metadata.social_caption || '');
+                }
+            } else {
+                // Empty cells for metadata columns in subsequent rows
+                row.push('', '', '');
+                if (isShort) {
+                    row.push('');
+                }
+            }
+
+            rows.push(row);
         });
 
         const csvContent = rows.map(row =>
@@ -1094,7 +1149,7 @@ Format your response as JSON with this exact structure:
                 scriptData = await generateScript(processingItem.topic, processingItem.fullData.Info, processingItem.ytType);
             }
 
-            const result = await generateCSV(processingItem.topic, processingItem.id, scriptData);
+            const result = await generateCSV(processingItem.topic, processingItem.id, scriptData, processingItem.ytType);
 
             if (result) {
                 // Update status to done
