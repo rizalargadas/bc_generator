@@ -66,6 +66,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const todayBtn = document.getElementById('today-btn');
     const selectedDayPosts = document.getElementById('selected-day-posts');
 
+    // Scheduling configuration elements
+    const weekdayScheduleTimeInput = document.getElementById('weekday-schedule-time');
+    const weekendScheduleTimeInput = document.getElementById('weekend-schedule-time');
+    const saveScheduleConfigBtn = document.getElementById('save-schedule-config');
+    const currentWeekdayTimeSpan = document.getElementById('current-weekday-time');
+    const currentWeekendTimeSpan = document.getElementById('current-weekend-time');
+
     let csvData = [];
     let selectedRows = new Set();
     let processingData = [];
@@ -86,6 +93,10 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentDate = new Date();
     let selectedDate = null;
     let scheduledPosts = []; // This will store scheduled posts data
+
+    // Scheduling configuration
+    let weekdayScheduleTime = '21:00'; // Default 9:00 PM for weekdays
+    let weekendScheduleTime = '13:00'; // Default 1:00 PM for weekends
 
     // Clean text function to remove special characters
     function cleanText(text) {
@@ -1271,6 +1282,8 @@ Format your response as JSON with this exact structure:
             localStorage.setItem('bc_generator_leonardo_alchemy', leonardoAlchemyEnabled);
             localStorage.setItem('bc_generator_paused_items', JSON.stringify(Array.from(pausedItems)));
             localStorage.setItem('bc_generator_script_word_count', longScriptWordCount);
+            localStorage.setItem('bc_generator_weekday_time', weekdayScheduleTime);
+            localStorage.setItem('bc_generator_weekend_time', weekendScheduleTime);
             localStorage.setItem('bc_generator_timestamp', new Date().toISOString());
         } catch (e) {
             console.warn('Could not save to localStorage:', e);
@@ -1394,6 +1407,9 @@ Format your response as JSON with this exact structure:
                     currentWordCountSpan.textContent = longScriptWordCount;
                 }
             }
+
+            // Load scheduling settings
+            loadSchedulingSettings();
         } catch (e) {
             console.warn('Could not load from localStorage:', e);
         }
@@ -2780,6 +2796,87 @@ Format your response as JSON with this exact structure:
             alert('Please enter a valid word count between 1,000 and 20,000');
         }
     });
+
+    // Scheduling Configuration Management
+    if (saveScheduleConfigBtn) {
+        saveScheduleConfigBtn.addEventListener('click', function() {
+            const weekdayTime = weekdayScheduleTimeInput.value;
+            const weekendTime = weekendScheduleTimeInput.value;
+
+            if (weekdayTime && weekendTime) {
+                weekdayScheduleTime = weekdayTime;
+                weekendScheduleTime = weekendTime;
+                saveToLocalStorage();
+
+                // Update display
+                updateScheduleDisplay();
+
+                // Show success feedback
+                const originalText = saveScheduleConfigBtn.textContent;
+                saveScheduleConfigBtn.textContent = 'Saved!';
+                saveScheduleConfigBtn.style.backgroundColor = '#28a745';
+
+                setTimeout(() => {
+                    saveScheduleConfigBtn.textContent = originalText;
+                    saveScheduleConfigBtn.style.backgroundColor = '';
+                }, 2000);
+            } else {
+                alert('Please select both weekday and weekend times.');
+            }
+        });
+    }
+
+    // Function to update schedule display
+    function updateScheduleDisplay() {
+        if (currentWeekdayTimeSpan && weekdayScheduleTime) {
+            const [hours, minutes] = weekdayScheduleTime.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+            currentWeekdayTimeSpan.textContent = `${displayHour}:${minutes} ${ampm}`;
+        }
+
+        if (currentWeekendTimeSpan && weekendScheduleTime) {
+            const [hours, minutes] = weekendScheduleTime.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+            currentWeekendTimeSpan.textContent = `${displayHour}:${minutes} ${ampm}`;
+        }
+    }
+
+    // Load scheduling settings from localStorage
+    function loadSchedulingSettings() {
+        const savedWeekdayTime = localStorage.getItem('bc_generator_weekday_time');
+        const savedWeekendTime = localStorage.getItem('bc_generator_weekend_time');
+
+        if (savedWeekdayTime) {
+            weekdayScheduleTime = savedWeekdayTime;
+            if (weekdayScheduleTimeInput) {
+                weekdayScheduleTimeInput.value = savedWeekdayTime;
+            }
+        }
+
+        if (savedWeekendTime) {
+            weekendScheduleTime = savedWeekendTime;
+            if (weekendScheduleTimeInput) {
+                weekendScheduleTimeInput.value = savedWeekendTime;
+            }
+        }
+
+        updateScheduleDisplay();
+    }
+
+    // Function to get the default schedule time for a given date
+    function getDefaultScheduleTime(date) {
+        const dayOfWeek = date.getDay();
+        // 0 = Sunday, 6 = Saturday
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+            return weekendScheduleTime;
+        } else {
+            return weekdayScheduleTime;
+        }
+    }
 
     // Update word count display when input changes
     longScriptWordsInput.addEventListener('input', function() {

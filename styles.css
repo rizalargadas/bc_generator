@@ -1271,3 +1271,42 @@ main {
     color: var(--text-secondary);
     margin-top: 4px;
 }
+
+/* Scheduling Settings Styles */
+.scheduling-time-settings {
+    margin-top: 20px;
+}
+
+.scheduling-time-settings .form-group {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    gap: 15px;
+}
+
+.scheduling-time-settings label {
+    min-width: 250px;
+    font-weight: 500;
+}
+
+.scheduling-time-settings input[type="time"] {
+    width: 150px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: 'Courier Prime', monospace;
+    font-size: 14px;
+}
+
+.time-zone-label {
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-style: italic;
+}
+
+.help-text {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-top: 10px;
+    font-style: italic;
+}
