@@ -73,11 +73,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const currentWeekdayTimeSpan = document.getElementById('current-weekday-time');
     const currentWeekendTimeSpan = document.getElementById('current-weekend-time');
 
+    // History elements
+    const historyTable = document.getElementById('history-table');
+    const historyCount = document.getElementById('history-count');
+    const selectAllHistoryBtn = document.getElementById('select-all-history-btn');
+    const deselectAllHistoryBtn = document.getElementById('deselect-all-history-btn');
+    const deleteHistoryBtn = document.getElementById('delete-history-btn');
+    const clearHistoryBtn = document.getElementById('clear-history-btn');
+    const selectAllHistoryCheckbox = document.getElementById('select-all-history-checkbox');
+    const noHistoryData = document.getElementById('no-history-data');
+
     let csvData = [];
     let selectedRows = new Set();
     let processingData = [];
     let selectedProcessingRows = new Set();
     let pausedItems = new Set(); // Track paused processing items
+    let historyData = []; // Store completed/scheduled videos
+    let selectedHistoryRows = new Set();
     let nextProcessingId = 1;
     let usedTopicIds = new Set();
     let openaiApiKey = '';
@@ -1503,6 +1515,10 @@ Format your response as JSON with this exact structure:
             const usedIds = localStorage.getItem('bc_generator_used_ids');
             const pausedItems = localStorage.getItem('bc_generator_paused_items');
 
+            // Preserve history data - PROTECTED from clearing
+            const historyData = localStorage.getItem('bc_generator_history');
+            const historyTimestamp = localStorage.getItem('bc_generator_history_timestamp');
+
             // Only remove pending topics data
             localStorage.removeItem('bc_generator_data');
 
@@ -1522,10 +1538,14 @@ Format your response as JSON with this exact structure:
             if (usedIds) localStorage.setItem('bc_generator_used_ids', usedIds);
             if (pausedItems) localStorage.setItem('bc_generator_paused_items', pausedItems);
 
+            // Restore history data - PROTECTED from clearing
+            if (historyData) localStorage.setItem('bc_generator_history', historyData);
+            if (historyTimestamp) localStorage.setItem('bc_generator_history_timestamp', historyTimestamp);
+
             // Update timestamp
             localStorage.setItem('bc_generator_timestamp', new Date().toISOString());
 
-            console.log('✅ Pending topics cleared, processing data preserved');
+            console.log('✅ Pending topics cleared, processing and history data preserved');
         } catch (e) {
             console.warn('Could not clear pending topics from localStorage:', e);
         }
@@ -3451,7 +3471,7 @@ Format your response as JSON with this exact structure:
                         <div class="post-title">${post.title}</div>
                         <span class="post-platform">${post.platform}</span>
                         ${post.status ? `<span class="post-status">${post.status}</span>` : ''}
-                        <button class="btn-cancel-post" onclick="cancelScheduledPost(${postIndex})" title="Cancel this scheduled post">✕</button>
+                        <button class="btn-cancel-post" onclick="cancelScheduledPost(${postIndex}); this.style.display='none'; this.parentElement.style.opacity='0.5';" title="Cancel this scheduled post">✕</button>
                     </div>
                 `;
             });
@@ -3638,14 +3658,29 @@ Format your response as JSON with this exact structure:
             'scheduled'
         );
 
-        // Update item status
-        item.posting = 'scheduled';
-        item.scheduledDate = scheduledDate.toISOString();
-        item.scheduledType = videoType;
+        // Create history entry
+        const historyEntry = {
+            ...item, // Copy all properties from the processing item
+            scheduledDate: scheduledDate.toISOString(),
+            scheduledType: videoType,
+            completedDate: new Date().toISOString(),
+            status: 'scheduled'
+        };
 
-        // Save and refresh
+        // Add to history
+        historyData.push(historyEntry);
+
+        // Remove from processing
+        const processingIndex = processingData.indexOf(item);
+        if (processingIndex > -1) {
+            processingData.splice(processingIndex, 1);
+        }
+
+        // Save and refresh all tables
         populateProcessingTable();
+        populateHistoryTable();
         saveToLocalStorage();
+        saveHistoryData();
 
         // Log for debugging (no popup)
         const dateStr = scheduledDate.toLocaleDateString('en-US', {
@@ -3670,21 +3705,36 @@ Format your response as JSON with this exact structure:
         const post = scheduledPosts[postIndex];
         console.log(`🗑️ Cancelling scheduled post: ${post.title}`);
 
-        // Find corresponding processing item and reset its status
-        const processingItem = processingData.find(item => {
-            return item.posting === 'scheduled' &&
-                   item.scheduledDate &&
+        // Find corresponding history item and move it back to processing
+        const historyItem = historyData.find(item => {
+            return item.scheduledDate &&
                    new Date(item.scheduledDate).getTime() === new Date(post.scheduledTime).getTime() &&
                    post.title.includes(item.topic);
         });
 
-        if (processingItem) {
-            // Reset processing item status back to "ready to schedule"
-            processingItem.posting = 'ready to schedule';
+        if (historyItem) {
+            // Move back to processing with "ready to schedule" status
+            const processingItem = {
+                ...historyItem,
+                posting: 'ready to schedule'
+            };
+
+            // Remove scheduled-related fields
             delete processingItem.scheduledDate;
             delete processingItem.scheduledType;
+            delete processingItem.completedDate;
+            delete processingItem.status;
 
-            console.log(`🔄 Reset processing item: ${processingItem.topic} back to 'ready to schedule'`);
+            // Add back to processing
+            processingData.push(processingItem);
+
+            // Remove from history
+            const historyIndex = historyData.indexOf(historyItem);
+            if (historyIndex > -1) {
+                historyData.splice(historyIndex, 1);
+            }
+
+            console.log(`🔄 Moved ${historyItem.topic} back to processing`);
         }
 
         // Remove the scheduled post
@@ -3693,12 +3743,237 @@ Format your response as JSON with this exact structure:
         // Save and refresh all relevant UIs
         saveScheduledPosts(); // Updates calendar
         populateProcessingTable(); // Updates processing table
+        populateHistoryTable(); // Updates history table
         saveToLocalStorage(); // Saves processing data
+        saveHistoryData(); // Saves history data
 
-        // Refresh the calendar display
+        // Refresh the calendar display immediately
         renderCalendar();
+
+        // If we're currently viewing this day, update the posts display immediately
+        if (selectedDate) {
+            displayDayPosts(selectedDate);
+        }
 
         console.log(`✅ Cancelled scheduled post and updated all UI`);
     };
+
+    // History management functions
+    function populateHistoryTable() {
+        if (!historyTable) return; // Safety check
+
+        historyTable.innerHTML = '';
+        selectedHistoryRows.clear();
+
+        if (historyData.length === 0) {
+            noHistoryData.classList.add('show');
+            document.getElementById('history-table').style.display = 'none';
+            historyCount.textContent = '0 completed videos';
+            return;
+        }
+
+        noHistoryData.classList.remove('show');
+        document.getElementById('history-table').style.display = 'table';
+
+        historyData.forEach((item, index) => {
+            const tr = document.createElement('tr');
+            tr.dataset.index = index;
+
+            // Create checkbox cell
+            const checkboxTd = document.createElement('td');
+            checkboxTd.className = 'checkbox-col';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.addEventListener('change', function() {
+                if (this.checked) {
+                    selectedHistoryRows.add(index);
+                    tr.classList.add('selected');
+                } else {
+                    selectedHistoryRows.delete(index);
+                    tr.classList.remove('selected');
+                }
+                updateHistorySelectionCount();
+            });
+            checkboxTd.appendChild(checkbox);
+            tr.appendChild(checkboxTd);
+
+            // ID
+            const idTd = document.createElement('td');
+            idTd.innerHTML = `<span class="processing-id">${item.id}</span>`;
+            tr.appendChild(idTd);
+
+            // Topic
+            const topicTd = document.createElement('td');
+            topicTd.innerHTML = `<span class="processing-topic" title="${item.topic}">${item.topic}</span>`;
+            tr.appendChild(topicTd);
+
+            // Type
+            const typeTd = document.createElement('td');
+            typeTd.innerHTML = `<span class="video-type ${item.ytType.toLowerCase()}">${item.ytType}</span>`;
+            tr.appendChild(typeTd);
+
+            // Scheduled Date
+            const scheduledTd = document.createElement('td');
+            if (item.scheduledDate) {
+                const scheduledDate = new Date(item.scheduledDate);
+                scheduledTd.innerHTML = scheduledDate.toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } else {
+                scheduledTd.innerHTML = 'N/A';
+            }
+            tr.appendChild(scheduledTd);
+
+            // Completed Date
+            const completedTd = document.createElement('td');
+            if (item.completedDate) {
+                const completedDate = new Date(item.completedDate);
+                completedTd.innerHTML = completedDate.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } else {
+                completedTd.innerHTML = 'N/A';
+            }
+            tr.appendChild(completedTd);
+
+            // Status
+            const statusTd = document.createElement('td');
+            statusTd.innerHTML = `<span class="status ${item.status}">${item.status}</span>`;
+            tr.appendChild(statusTd);
+
+            // Folder
+            const folderTd = document.createElement('td');
+            if (item.outputDir) {
+                folderTd.innerHTML = `<button class="btn-mini" onclick="openFolderFromHistory('${item.outputDir.replace(/\\/g, '\\\\')}')">Open</button>`;
+            } else {
+                folderTd.innerHTML = 'N/A';
+            }
+            tr.appendChild(folderTd);
+
+            historyTable.appendChild(tr);
+        });
+
+        historyCount.textContent = `${historyData.length} completed video${historyData.length === 1 ? '' : 's'}`;
+    }
+
+    function updateHistorySelectionCount() {
+        const count = selectedHistoryRows.size;
+
+        if (count === 0) {
+            selectAllHistoryBtn.style.display = 'inline-block';
+            deselectAllHistoryBtn.style.display = 'none';
+            deleteHistoryBtn.style.display = 'none';
+        } else {
+            selectAllHistoryBtn.style.display = 'none';
+            deselectAllHistoryBtn.style.display = 'inline-block';
+            deleteHistoryBtn.style.display = 'inline-block';
+        }
+    }
+
+    function saveHistoryData() {
+        try {
+            localStorage.setItem('bc_generator_history', JSON.stringify(historyData));
+            localStorage.setItem('bc_generator_history_timestamp', new Date().toISOString());
+        } catch (e) {
+            console.warn('Could not save history to localStorage:', e);
+        }
+    }
+
+    function loadHistoryData() {
+        try {
+            const savedHistory = localStorage.getItem('bc_generator_history');
+            if (savedHistory) {
+                historyData = JSON.parse(savedHistory);
+                populateHistoryTable();
+            }
+        } catch (e) {
+            console.warn('Could not load history from localStorage:', e);
+        }
+    }
+
+    // Global function for opening folder from history
+    window.openFolderFromHistory = async function(folderPath) {
+        try {
+            const { ipcRenderer } = require('electron');
+            const result = await ipcRenderer.invoke('open-folder', { folderPath });
+
+            if (result.success) {
+                console.log(`Successfully opened folder: ${folderPath}`);
+            } else {
+                console.error('Failed to open folder:', result.error);
+                alert(`Failed to open folder: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('Error opening folder:', error);
+            alert(`Error opening folder: ${error.message}`);
+        }
+    };
+
+    // History event listeners
+    if (selectAllHistoryBtn) {
+        selectAllHistoryBtn.addEventListener('click', function() {
+            const checkboxes = historyTable.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach((checkbox, index) => {
+                checkbox.checked = true;
+                selectedHistoryRows.add(index);
+                checkbox.closest('tr').classList.add('selected');
+            });
+            updateHistorySelectionCount();
+        });
+    }
+
+    if (deselectAllHistoryBtn) {
+        deselectAllHistoryBtn.addEventListener('click', function() {
+            const checkboxes = historyTable.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach((checkbox) => {
+                checkbox.checked = false;
+                checkbox.closest('tr').classList.remove('selected');
+            });
+            selectedHistoryRows.clear();
+            updateHistorySelectionCount();
+        });
+    }
+
+    if (deleteHistoryBtn) {
+        deleteHistoryBtn.addEventListener('click', function() {
+            if (selectedHistoryRows.size === 0) return;
+
+            if (confirm(`Are you sure you want to delete ${selectedHistoryRows.size} selected item(s) from history?`)) {
+                // Convert to array and sort descending to avoid index issues
+                const indicesToDelete = Array.from(selectedHistoryRows).sort((a, b) => b - a);
+
+                indicesToDelete.forEach(index => {
+                    historyData.splice(index, 1);
+                });
+
+                selectedHistoryRows.clear();
+                populateHistoryTable();
+                updateHistorySelectionCount();
+                saveHistoryData();
+            }
+        });
+    }
+
+    if (clearHistoryBtn) {
+        clearHistoryBtn.addEventListener('click', function() {
+            if (confirm('Are you sure you want to clear all history? This action cannot be undone.')) {
+                historyData = [];
+                selectedHistoryRows.clear();
+                populateHistoryTable();
+                updateHistorySelectionCount();
+                saveHistoryData();
+            }
+        });
+    }
+
+    // Load history data on page load
+    loadHistoryData();
 
 });

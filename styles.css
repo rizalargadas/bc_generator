@@ -539,6 +539,7 @@ main {
     padding: 8px;
     border-bottom: 1px solid #eee;
     position: relative;
+    transition: opacity 0.3s ease;
 }
 
 .btn-cancel-post {
@@ -565,6 +566,93 @@ main {
 .post-status {
     color: #666;
     font-size: 0.9em;
+}
+
+/* History Table Improvements */
+#history-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+#history-table th {
+    background: var(--bg-secondary);
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: bold;
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+}
+
+#history-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    word-wrap: break-word;
+}
+
+#history-table tr:hover {
+    background: #f9f9f9;
+}
+
+#history-table tr.selected {
+    background: #e3f2fd !important;
+}
+
+.history-section {
+    padding: 20px 0;
+}
+
+.history-section .table-controls {
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.video-type {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.video-type.long {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+
+.video-type.shorts {
+    background: #fff3e0;
+    color: #ef6c00;
+}
+
+.processing-topic {
+    max-width: 200px;
+    display: inline-block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Better spacing for dates */
+#history-table td:nth-child(5), /* Scheduled Date */
+#history-table td:nth-child(6) { /* Completed Date */
+    white-space: nowrap;
+    min-width: 120px;
+}
+
+/* Status styling */
+.status.scheduled {
+    background: #28a745;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: bold;
 }
 
 .processing-id {

@@ -19,6 +19,7 @@
             <button class="tab-btn active" data-tab="upload">Upload</button>
             <button class="tab-btn" data-tab="pending">Pending Topics</button>
             <button class="tab-btn" data-tab="processing">Processing</button>
+            <button class="tab-btn" data-tab="history">History</button>
             <button class="tab-btn" data-tab="calendar">Calendar</button>
             <button class="tab-btn" data-tab="settings">Settings</button>
         </nav>
@@ -173,6 +174,45 @@
                         <h3>Scheduled Posts</h3>
                         <div id="selected-day-posts">
                             <p class="no-posts-message">Select a day to view scheduled posts</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="history-tab">
+                <div class="history-section">
+                    <div class="table-controls">
+                        <div class="selection-info">
+                            <span id="history-count">0 completed videos</span>
+                        </div>
+                        <div class="action-buttons">
+                            <button class="btn-secondary" id="select-all-history-btn">Select All</button>
+                            <button class="btn-secondary" id="deselect-all-history-btn" style="display: none;">Deselect All</button>
+                            <button class="btn-danger" id="delete-history-btn" style="display: none;">Delete Selected</button>
+                            <button class="btn-warning" id="clear-history-btn">Clear History</button>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="history-table">
+                            <thead>
+                                <tr>
+                                    <th class="checkbox-col">
+                                        <input type="checkbox" id="select-all-history-checkbox">
+                                    </th>
+                                    <th>ID</th>
+                                    <th>Topic</th>
+                                    <th>Type</th>
+                                    <th>Scheduled Date</th>
+                                    <th>Completed Date</th>
+                                    <th>Status</th>
+                                    <th>Folder</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-tbody">
+                            </tbody>
+                        </table>
+                        <div class="no-data" id="no-history-data">
+                            No completed videos yet. Videos will appear here after being successfully scheduled.
                         </div>
                     </div>
                 </div>
