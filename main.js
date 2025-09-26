@@ -131,6 +131,39 @@ ipcMain.handle('save-image', async (event, { imageUrl, outputDir, topicId, scene
     });
 });
 
+// Handle saving thumbnail image to topic root folder
+ipcMain.handle('save-thumbnail', async (event, { imageUrl, outputDir, fileName }) => {
+    return new Promise((resolve) => {
+        try {
+            // Ensure output directory exists
+            if (!fs.existsSync(outputDir)) {
+                fs.mkdirSync(outputDir, { recursive: true });
+            }
+
+            const thumbnailPath = path.join(outputDir, fileName);
+            const file = fs.createWriteStream(thumbnailPath);
+
+            https.get(imageUrl, (response) => {
+                response.pipe(file);
+
+                file.on('finish', () => {
+                    file.close();
+                    resolve({ success: true, thumbnailPath });
+                });
+
+                file.on('error', (err) => {
+                    fs.unlink(thumbnailPath, () => {}); // Delete the file on error
+                    resolve({ success: false, error: err.message });
+                });
+            }).on('error', (err) => {
+                resolve({ success: false, error: err.message });
+            });
+        } catch (error) {
+            resolve({ success: false, error: error.message });
+        }
+    });
+});
+
 // Check processing status
 ipcMain.handle('check-processing-status', async (event, { outputDir, topicId }) => {
     try {
