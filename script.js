@@ -313,7 +313,7 @@ IMPORTANT: Use only plain ASCII text. Avoid special characters, smart quotes, em
 
 🎯 FINAL REMINDER: The combined word count of ALL "script" fields must total ${targetWords} words (±50). Count them before submitting!
 
-Additionally, generate metadata for YouTube and social media:
+Additionally, generate metadata for YouTube and social media, plus thumbnail prompts:
 
 For ${isShort ? 'YouTube Shorts' : 'Long-form YouTube video'}:
 - YouTube Title: An engaging, click-worthy title (max 100 characters)
@@ -322,6 +322,13 @@ For ${isShort ? 'YouTube Shorts' : 'Long-form YouTube video'}:
 
 ${isShort ? `For TikTok/Instagram:
 - Social Caption: An engaging caption for TikTok/IG including relevant hashtags like #tiktok #instagram #shorts #mystery #truecrime etc (max 150 characters for optimal engagement)` : ''}
+
+For YouTube Thumbnail (CRITICAL - Dark History CTR Strategy):
+You are a dark-history YouTube thumbnail strategist, expert in crafting scroll-stopping visuals and text for maximum CTR (click-through rate).
+
+Step 1: Craft a vivid, cinematic AI image prompt for Leonardo.ai to generate a YouTube thumbnail for this video script. The image must evoke mystery, eeriness, and curiosity while remaining compliant with platform guidelines. Include a close-up of a human face or the most striking subject of the story. Use dramatic, descriptive language (mood, lighting, emotion, setting) in one sentence — no text on the image.
+
+Step 2: Create 6-8 short, eerie, clickbait-worthy thumbnail captions (max 6 words each) in a mix of questions, statements, and shocking facts — in the style of: "The Great Disaster of 2025", "Creepiest Things in Vatican", "She is 800 Million Years Old", etc. Your goal: maximize intrigue and clicks while staying on brand.
 
 Format your response as JSON with this exact structure:
 {
@@ -338,6 +345,10 @@ Format your response as JSON with this exact structure:
     "youtube_description": "Detailed YouTube description",
     "youtube_tags": "tag1, tag2, tag3... (30 tags total)"${isShort ? `,
     "social_caption": "TikTok/IG caption with hashtags"` : ''}
+  },
+  "thumbnail": {
+    "image_prompt": "A vivid, cinematic AI image prompt for Leonardo.ai showing [describe the most striking visual from the story with dramatic mood, lighting, emotion, and setting - no text on image]",
+    "text_options": ["Option 1 (max 6 words)", "Option 2 (max 6 words)", "Option 3 (max 6 words)", "Option 4 (max 6 words)", "Option 5 (max 6 words)", "Option 6 (max 6 words)", "Option 7 (max 6 words)", "Option 8 (max 6 words)"]
   }
 }`;
 
@@ -409,6 +420,15 @@ Format your response as JSON with this exact structure:
                     };
                 }
 
+                // Clean thumbnail data if present
+                if (parsedData.thumbnail) {
+                    parsedData.thumbnail = {
+                        image_prompt: cleanText(parsedData.thumbnail.image_prompt || ''),
+                        text_options: parsedData.thumbnail.text_options ?
+                            parsedData.thumbnail.text_options.map(option => cleanText(option)) : []
+                    };
+                }
+
                 return parsedData;
             } catch (parseError) {
                 // Fallback: parse text response
@@ -463,10 +483,10 @@ Format your response as JSON with this exact structure:
     async function generateCSV(topic, topicId, scriptData, ytType = 'Long') {
         const isShort = ytType === 'Shorts';
 
-        // Determine headers based on video type
+        // Determine headers based on video type (now includes thumbnail columns)
         const headers = isShort ?
-            ['Scene #', 'Script for Voice Over', 'Image Generation Prompt', 'YT Title', 'YT Description', 'YT Tags', 'TikTok/IG Caption'] :
-            ['Scene #', 'Script for Voice Over', 'Image Generation Prompt', 'YT Title', 'YT Description', 'YT Tags'];
+            ['Scene #', 'Script for Voice Over', 'Image Generation Prompt', 'YT Title', 'YT Description', 'YT Tags', 'TikTok/IG Caption', 'Thumbnail Image Prompt', 'Thumbnail Text'] :
+            ['Scene #', 'Script for Voice Over', 'Image Generation Prompt', 'YT Title', 'YT Description', 'YT Tags', 'Thumbnail Image Prompt', 'Thumbnail Text'];
 
         const rows = [headers];
 
@@ -489,12 +509,24 @@ Format your response as JSON with this exact structure:
                 if (isShort) {
                     row.push(scriptData.metadata.social_caption || '');
                 }
+
+                // Add thumbnail data to first row
+                if (scriptData.thumbnail) {
+                    row.push(
+                        scriptData.thumbnail.image_prompt || '',
+                        scriptData.thumbnail.text_options ? scriptData.thumbnail.text_options.join(' | ') : ''
+                    );
+                } else {
+                    row.push('', ''); // Empty thumbnail columns
+                }
             } else {
                 // Empty cells for metadata columns in subsequent rows
                 row.push('', '', '');
                 if (isShort) {
                     row.push('');
                 }
+                // Empty thumbnail columns for subsequent rows
+                row.push('', '');
             }
 
             rows.push(row);
