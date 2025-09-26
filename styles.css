@@ -512,6 +512,61 @@ main {
     border: 1px solid #d6d8db;
 }
 
+.status-scheduled {
+    background: #28a745;
+    color: white;
+    border: 1px solid #1e7e34;
+    font-weight: bold;
+}
+
+.schedule-ready {
+    transition: all 0.3s ease;
+    user-select: none;
+}
+
+.schedule-ready:hover {
+    background: #1e7e34 !important;
+    color: white !important;
+    border: 1px solid #155724 !important;
+    transform: scale(1.05);
+    font-weight: bold;
+}
+
+.scheduled-post-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+    position: relative;
+}
+
+.btn-cancel-post {
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    transition: all 0.2s ease;
+}
+
+.btn-cancel-post:hover {
+    background: #c82333;
+    transform: scale(1.1);
+}
+
+.post-status {
+    color: #666;
+    font-size: 0.9em;
+}
+
 .processing-id {
     font-weight: 700;
     color: var(--accent);

@@ -1645,6 +1645,7 @@ Format your response as JSON with this exact structure:
         if (status === 'waiting...' || status === 'waiting') return 'status-waiting';
         if (status === 'done') return 'status-done';
         if (status === 'ready to schedule') return 'status-ready';
+        if (status === 'scheduled') return 'status-scheduled';
         if (status === 'failed') return 'status-failed';
         if (status === 'paused') return 'status-paused';
         return 'status-waiting';
@@ -1698,8 +1699,20 @@ Format your response as JSON with this exact structure:
             const thumbnailResult = await checkItemThumbnail(item.outputDir);
             const thumbnailReady = thumbnailResult && thumbnailResult.hasThumbnail;
 
-            if (scriptReady && imageReady && voiceReady && videoReady && thumbnailReady) {
-                postingTd.innerHTML = `<span class="status ready">ready to schedule</span>`;
+            // Check if already scheduled
+            if (item.posting === 'scheduled' && item.scheduledDate) {
+                const scheduledDate = new Date(item.scheduledDate);
+                const dateStr = scheduledDate.toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                postingTd.innerHTML = `<span class="status scheduled" title="Scheduled for ${dateStr}">scheduled (${dateStr})</span>`;
+            } else if (scriptReady && imageReady && voiceReady && videoReady && thumbnailReady) {
+                const itemIndex = processingData.indexOf(item);
+                postingTd.innerHTML = `<span class="status ready schedule-ready" data-item-index="${itemIndex}" onclick="scheduleNow(${itemIndex})" onmouseover="this.innerHTML='Schedule Now'" onmouseout="this.innerHTML='ready to schedule'" style="cursor: pointer;">ready to schedule</span>`;
             } else {
                 const missing = [];
                 if (!scriptReady) missing.push('script');
@@ -3422,7 +3435,7 @@ Format your response as JSON with this exact structure:
             let html = `<h4 style="margin-bottom: 15px;">${dateStr}</h4>`;
             dayPosts.sort((a, b) => new Date(a.scheduledTime) - new Date(b.scheduledTime));
 
-            dayPosts.forEach(post => {
+            dayPosts.forEach((post, index) => {
                 const time = new Date(post.scheduledTime).toLocaleTimeString('en-US', {
                     hour: '2-digit',
                     minute: '2-digit',
@@ -3430,12 +3443,15 @@ Format your response as JSON with this exact structure:
                     timeZone: 'Asia/Manila'
                 });
 
+                const postIndex = scheduledPosts.indexOf(post);
+
                 html += `
                     <div class="scheduled-post-item">
                         <div class="post-time">${time}</div>
                         <div class="post-title">${post.title}</div>
                         <span class="post-platform">${post.platform}</span>
-                        ${post.status ? `<span class="post-platform">${post.status}</span>` : ''}
+                        ${post.status ? `<span class="post-status">${post.status}</span>` : ''}
+                        <button class="btn-cancel-post" onclick="cancelScheduledPost(${postIndex})" title="Cancel this scheduled post">✕</button>
                     </div>
                 `;
             });
@@ -3515,5 +3531,174 @@ Format your response as JSON with this exact structure:
     if (document.querySelector('.tab-btn[data-tab="calendar"].active')) {
         loadScheduledPosts();
     }
+
+    // Find the next available date for scheduling based on the weekly pattern
+    function findNextAvailableDate() {
+        const today = new Date();
+        let checkDate = new Date(today);
+
+        // Start checking from today
+        while (true) {
+            const dayOfWeek = checkDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+
+            // Skip Sunday (day 0) - REST DAY
+            if (dayOfWeek === 0) {
+                checkDate.setDate(checkDate.getDate() + 1);
+                continue;
+            }
+
+            // Check if this date already has a post scheduled
+            const dateStr = checkDate.toDateString();
+            const existingPost = scheduledPosts.find(post => {
+                const postDate = new Date(post.scheduledTime);
+                return postDate.toDateString() === dateStr;
+            });
+
+            if (!existingPost) {
+                return checkDate;
+            }
+
+            // Move to next day
+            checkDate.setDate(checkDate.getDate() + 1);
+
+            // Prevent infinite loop - limit to 60 days in future
+            if (checkDate.getTime() - today.getTime() > 60 * 24 * 60 * 60 * 1000) {
+                break;
+            }
+        }
+
+        return null; // No available date found in next 60 days
+    }
+
+    // Determine if we should schedule Long or Shorts based on existing schedule
+    function determineVideoType(scheduledDate, item) {
+        const dayOfWeek = scheduledDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+
+        // Check what's already scheduled for consecutive days to maintain pairing
+        const dateStr = scheduledDate.toDateString();
+        const nextDay = new Date(scheduledDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        const prevDay = new Date(scheduledDate);
+        prevDay.setDate(prevDay.getDate() - 1);
+
+        const nextDayPost = scheduledPosts.find(post => {
+            const postDate = new Date(post.scheduledTime);
+            return postDate.toDateString() === nextDay.toDateString();
+        });
+
+        const prevDayPost = scheduledPosts.find(post => {
+            const postDate = new Date(post.scheduledTime);
+            return postDate.toDateString() === prevDay.toDateString();
+        });
+
+        // If item is already Long or Shorts, respect that
+        if (item.ytType === 'Long' || item.ytType === 'Shorts') {
+            return item.ytType;
+        }
+
+        // Default pattern: Monday/Wednesday/Friday/Saturday = Long, Tuesday/Thursday = Shorts
+        if (dayOfWeek === 1 || dayOfWeek === 3 || dayOfWeek === 5 || dayOfWeek === 6) {
+            return 'Long';
+        } else {
+            return 'Shorts';
+        }
+    }
+
+    // Schedule Now functionality
+    window.scheduleNow = function(itemIndex) {
+        if (itemIndex < 0 || itemIndex >= processingData.length) {
+            alert('Invalid item index');
+            return;
+        }
+
+        const item = processingData[itemIndex];
+
+        // Find next available date
+        const scheduledDate = findNextAvailableDate();
+        if (!scheduledDate) {
+            alert('No available dates found in the next 60 days. Please check your calendar.');
+            return;
+        }
+
+        // Determine video type and time
+        const videoType = determineVideoType(scheduledDate, item);
+        const dayOfWeek = scheduledDate.getDay();
+        const isWeekend = dayOfWeek === 6 || dayOfWeek === 0; // Saturday = 6, Sunday = 0
+        const scheduleTime = isWeekend ? weekendScheduleTime : weekdayScheduleTime;
+
+        // Create scheduled time
+        const [hours, minutes] = scheduleTime.split(':');
+        scheduledDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+        // Add to scheduled posts
+        const scheduledPost = addScheduledPost(
+            `${item.topic} (${videoType})`,
+            'YouTube',
+            scheduledDate.toISOString(),
+            'scheduled'
+        );
+
+        // Update item status
+        item.posting = 'scheduled';
+        item.scheduledDate = scheduledDate.toISOString();
+        item.scheduledType = videoType;
+
+        // Save and refresh
+        populateProcessingTable();
+        saveToLocalStorage();
+
+        // Log for debugging (no popup)
+        const dateStr = scheduledDate.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        console.log(`📅 Scheduled: ${item.topic} (${videoType}) for ${dateStr}`);
+    };
+
+    // Cancel/Delete scheduled post functionality
+    window.cancelScheduledPost = function(postIndex) {
+        if (postIndex < 0 || postIndex >= scheduledPosts.length) {
+            console.error('Invalid post index:', postIndex);
+            return;
+        }
+
+        const post = scheduledPosts[postIndex];
+        console.log(`🗑️ Cancelling scheduled post: ${post.title}`);
+
+        // Find corresponding processing item and reset its status
+        const processingItem = processingData.find(item => {
+            return item.posting === 'scheduled' &&
+                   item.scheduledDate &&
+                   new Date(item.scheduledDate).getTime() === new Date(post.scheduledTime).getTime() &&
+                   post.title.includes(item.topic);
+        });
+
+        if (processingItem) {
+            // Reset processing item status back to "ready to schedule"
+            processingItem.posting = 'ready to schedule';
+            delete processingItem.scheduledDate;
+            delete processingItem.scheduledType;
+
+            console.log(`🔄 Reset processing item: ${processingItem.topic} back to 'ready to schedule'`);
+        }
+
+        // Remove the scheduled post
+        scheduledPosts.splice(postIndex, 1);
+
+        // Save and refresh all relevant UIs
+        saveScheduledPosts(); // Updates calendar
+        populateProcessingTable(); // Updates processing table
+        saveToLocalStorage(); // Saves processing data
+
+        // Refresh the calendar display
+        renderCalendar();
+
+        console.log(`✅ Cancelled scheduled post and updated all UI`);
+    };
 
 });
