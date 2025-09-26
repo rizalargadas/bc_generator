@@ -16,7 +16,7 @@
         </header>
 
         <nav class="tabs">
-            <button class="tab-btn active" data-tab="upload">Upload</button>
+            <button class="tab-btn active" data-tab="upload">Topic</button>
             <button class="tab-btn" data-tab="pending">Pending Topics</button>
             <button class="tab-btn" data-tab="processing">Processing</button>
             <button class="tab-btn" data-tab="history">History</button>
@@ -37,7 +37,37 @@
                     Upload Topics
                 </button>
                 <div class="file-info" id="fileInfo"></div>
-            </div>
+                </div>
+
+                <div class="generate-section">
+                    <h3>Generate Topics</h3>
+                    <div class="generate-controls">
+                        <div class="count-selection">
+                            <label for="topicCount">Number of topics to generate:</label>
+                            <select id="topicCount">
+                                <option value="5" selected>5</option>
+                                <option value="10">10</option>
+                                <option value="30">30</option>
+                            </select>
+                        </div>
+                        <button class="generate-btn" id="generateTopicBtn" onclick="generateTopics()">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                                <path d="M2 17l10 5 10-5"></path>
+                                <path d="M2 12l10 5 10-5"></path>
+                            </svg>
+                            Generate Topics
+                        </button>
+                    </div>
+                    <div class="generated-topics" id="generatedTopics" style="display: none;">
+                        <h4>Generated Topics</h4>
+                        <div class="topic-list" id="topicList"></div>
+                        <div class="topic-actions">
+                            <button class="btn-primary" id="moveTopicsBtn" onclick="moveTopicsToPending()">Move to Pending Topics</button>
+                            <button class="btn-secondary" id="discardTopicsBtn" onclick="discardTopics()">Discard</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="tab-content" id="pending-tab">

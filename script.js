@@ -4082,3 +4082,310 @@ Format your response as JSON with this exact structure:
     loadHistoryData();
 
 });
+
+// Global variable to store generated topics
+let generatedTopics = [];
+
+// Generate topics function
+async function generateTopics() {
+    const generateBtn = document.getElementById('generateTopicBtn');
+    const topicCountSelect = document.getElementById('topicCount');
+    const generatedTopicsDiv = document.getElementById('generatedTopics');
+    const topicListDiv = document.getElementById('topicList');
+
+    const count = parseInt(topicCountSelect.value);
+
+    try {
+        // Disable button and show loading state
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24"></path>
+            </svg>
+            Generating ${count} Topics...
+        `;
+
+        // Get API key and model from localStorage
+        const apiKey = localStorage.getItem('bc_generator_openai_key');
+        const model = 'gpt-4'; // Use the same model as other functions
+
+        if (!apiKey) {
+            throw new Error('OpenAI API key not configured. Please set it in Settings first.');
+        }
+
+        // Get existing topics to avoid duplicates
+        const existingTopics = getExistingTopics();
+
+        console.log(`Existing topics found: ${existingTopics.length}`);
+        console.log('Generating topics with OpenAI...');
+
+        // Call OpenAI API to generate topics
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: model,
+                messages: [{
+                    role: 'system',
+                    content: `You are a YouTube content creator specializing in dark history topics. Generate ${count} unique, engaging video topic titles that would perform well on YouTube.
+
+IMPORTANT: Avoid any topics that might appear in this list of existing topics: ${existingTopics.join(', ')}
+
+Focus on:
+- Dark historical events and mysteries
+- Forgotten crimes and conspiracies
+- Unexplained historical phenomena
+- Hidden stories from history
+- Controversial historical figures
+- Ancient mysteries and lost civilizations
+
+Make each title:
+- Compelling and click-worthy for YouTube
+- 50-80 characters long
+- Specific enough to create a focused video
+- Different from the existing topics provided
+
+Return ONLY a JSON array of topic strings, nothing else. Example format:
+["Topic 1 Here", "Topic 2 Here", "Topic 3 Here"]`
+                }],
+                max_tokens: 1000,
+                temperature: 0.9
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`API error: ${response.status} - ${errorText}`);
+        }
+
+        const result = await response.json();
+        console.log('OpenAI API response:', result);
+
+        if (!result.choices || !result.choices[0] || !result.choices[0].message) {
+            throw new Error('Invalid API response structure');
+        }
+
+        const content = result.choices[0].message.content.trim();
+        console.log('Raw API content:', content);
+
+        // Parse the JSON response
+        let topics;
+        try {
+            // Remove any markdown code blocks if present
+            const cleanContent = content.replace(/```json\n?|```\n?/g, '').trim();
+            topics = JSON.parse(cleanContent);
+            console.log('Parsed topics:', topics);
+        } catch (parseError) {
+            console.error('Failed to parse topics JSON:', content);
+            throw new Error(`Invalid response format from API: ${parseError.message}`);
+        }
+
+        if (!Array.isArray(topics)) {
+            console.error('Topics is not an array:', topics);
+            throw new Error('API returned invalid topic format - expected array');
+        }
+
+        console.log(`Generated ${topics.length} topics before duplicate filtering`);
+        console.log('Existing topics to compare against:', existingTopics);
+
+        // Filter out any topics that might still be duplicates (case-insensitive)
+        const lowercaseExisting = existingTopics.map(t => t.toLowerCase());
+        const uniqueTopics = topics.filter(topic =>
+            !lowercaseExisting.includes(topic.toLowerCase())
+        );
+
+        console.log(`After duplicate filtering: ${uniqueTopics.length} unique topics`);
+        console.log('Unique topics:', uniqueTopics);
+
+        if (uniqueTopics.length === 0) {
+            throw new Error('All generated topics already exist. Please try again.');
+        }
+
+        // Store generated topics globally
+        generatedTopics = uniqueTopics;
+
+        // Display the generated topics
+        displayGeneratedTopics(uniqueTopics);
+
+    } catch (error) {
+        console.error('Error generating topics:', error);
+        alert(`Failed to generate topics: ${error.message}`);
+    } finally {
+        // Re-enable button
+        generateBtn.disabled = false;
+        generateBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                <path d="M2 17l10 5 10-5"></path>
+                <path d="M2 12l10 5 10-5"></path>
+            </svg>
+            Generate Topics
+        `;
+    }
+}
+
+// Get all existing topics from Pending Topics and History
+function getExistingTopics() {
+    const existingTopics = [];
+
+    // Get topics from pending data using the correct localStorage key
+    const pendingDataStr = localStorage.getItem('bc_generator_data');
+    if (pendingDataStr) {
+        try {
+            const pendingData = JSON.parse(pendingDataStr);
+            if (Array.isArray(pendingData)) {
+                pendingData.forEach(item => {
+                    if (item.topic) {
+                        existingTopics.push(item.topic);
+                    }
+                });
+            }
+        } catch (e) {
+            console.error('Error parsing pending data:', e);
+        }
+    }
+
+    // Get topics from history data
+    if (window.historyData && Array.isArray(window.historyData)) {
+        window.historyData.forEach(item => {
+            if (item.topic) {
+                existingTopics.push(item.topic);
+            }
+        });
+    }
+
+    // Get topics from processing data
+    if (window.processingData && Array.isArray(window.processingData)) {
+        window.processingData.forEach(item => {
+            if (item.topic) {
+                existingTopics.push(item.topic);
+            }
+        });
+    }
+
+    return existingTopics;
+}
+
+// Display generated topics
+function displayGeneratedTopics(topics) {
+    const generatedTopicsDiv = document.getElementById('generatedTopics');
+    const topicListDiv = document.getElementById('topicList');
+
+    // Clear previous topics
+    topicListDiv.innerHTML = '';
+
+    // Create topic items
+    topics.forEach((topic, index) => {
+        const topicItem = document.createElement('div');
+        topicItem.className = 'topic-item';
+        topicItem.textContent = `${index + 1}. ${topic}`;
+        topicListDiv.appendChild(topicItem);
+    });
+
+    // Show the generated topics section
+    generatedTopicsDiv.style.display = 'block';
+}
+
+// Move topics to pending with confirmation
+function moveTopicsToPending() {
+    console.log('moveTopicsToPending called');
+    console.log('generatedTopics:', generatedTopics);
+
+    if (generatedTopics.length === 0) {
+        console.log('No topics to move - generatedTopics array is empty');
+        return;
+    }
+
+    const message = `Add ${generatedTopics.length} generated topic${generatedTopics.length > 1 ? 's' : ''} to Pending Topics?`;
+    console.log('Showing confirmation dialog:', message);
+
+    if (confirm(message)) {
+        console.log('User confirmed, proceeding to add topics');
+
+        // Get existing pending data using the correct localStorage key
+        const existingData = localStorage.getItem('bc_generator_data');
+        let pendingTopics = [];
+
+        if (existingData) {
+            try {
+                pendingTopics = JSON.parse(existingData);
+                console.log('Loaded existing pending topics:', pendingTopics);
+            } catch (e) {
+                console.error('Error parsing existing pending data:', e);
+                pendingTopics = [];
+            }
+        } else {
+            console.log('No existing pending data found, starting fresh');
+        }
+
+        console.log('Current pending topics before adding:', pendingTopics);
+
+        // Add each topic to pending data - create both Long and Shorts versions
+        generatedTopics.forEach((topic, index) => {
+            // Don't set _topicId here - let the system generate it automatically
+            // The existing system will generate proper 4-character IDs when loading
+
+            // Create Long version
+            const longTopic = {
+                'Topic': topic,
+                'Info': 'Generated topic for dark history content',
+                'YT Type': 'Long'
+                // No _topicId - will be generated automatically
+            };
+            console.log(`Adding Long topic ${index + 1}:`, longTopic);
+            pendingTopics.push(longTopic);
+
+            // Create Shorts version
+            const shortTopic = {
+                'Topic': topic,
+                'Info': 'Generated topic for dark history content',
+                'YT Type': 'Shorts'
+                // No _topicId - will be generated automatically
+            };
+            console.log(`Adding Shorts topic ${index + 1}:`, shortTopic);
+            pendingTopics.push(shortTopic);
+        });
+
+        console.log('Final pending topics after adding:', pendingTopics);
+
+        // Save to localStorage using the correct key
+        localStorage.setItem('bc_generator_data', JSON.stringify(pendingTopics));
+        console.log('Saved to localStorage with key: bc_generator_data');
+
+        // Dispatch a custom event to trigger pending table refresh
+        const refreshEvent = new CustomEvent('pendingTopicsUpdated', {
+            detail: { newTopics: generatedTopics }
+        });
+        window.dispatchEvent(refreshEvent);
+        console.log('Dispatched pendingTopicsUpdated event');
+
+        // Store count before clearing (each topic creates Long + Shorts = 2 entries)
+        const topicCount = generatedTopics.length;
+        const totalEntries = topicCount * 2;
+
+        // Clear generated topics first
+        discardTopics();
+
+        // Show success message
+        alert(`Successfully added ${topicCount} topic${topicCount > 1 ? 's' : ''} (${totalEntries} entries: Long + Shorts) to Pending Topics!`);
+
+        // Force page refresh to ensure topics appear
+        console.log('Reloading page to refresh pending topics');
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
+    } else {
+        console.log('User cancelled');
+    }
+}
+
+// Discard generated topics
+function discardTopics() {
+    generatedTopics = [];
+    const generatedTopicsDiv = document.getElementById('generatedTopics');
+    generatedTopicsDiv.style.display = 'none';
+}
