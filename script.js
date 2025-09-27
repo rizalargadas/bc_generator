@@ -4728,24 +4728,40 @@ function getExistingTopics() {
         }
     }
 
-    // Get topics from history data
-    if (historyData && Array.isArray(historyData)) {
-        historyData.forEach(item => {
-            if (item.topic) {
-                existingTopics.push(item.topic);
-                historyCount++;
+    // Get topics from history data (from localStorage)
+    const historyDataStr = localStorage.getItem('bc_generator_history');
+    if (historyDataStr) {
+        try {
+            const historyData = JSON.parse(historyDataStr);
+            if (Array.isArray(historyData)) {
+                historyData.forEach(item => {
+                    if (item.topic) {
+                        existingTopics.push(item.topic);
+                        historyCount++;
+                    }
+                });
             }
-        });
+        } catch (e) {
+            console.error('Error parsing history data:', e);
+        }
     }
 
-    // Get topics from processing data
-    if (processingData && Array.isArray(processingData)) {
-        processingData.forEach(item => {
-            if (item.topic) {
-                existingTopics.push(item.topic);
-                processingCount++;
+    // Get topics from processing data (from localStorage)
+    const processingDataStr = localStorage.getItem('bc_generator_processing');
+    if (processingDataStr) {
+        try {
+            const processingData = JSON.parse(processingDataStr);
+            if (Array.isArray(processingData)) {
+                processingData.forEach(item => {
+                    if (item.topic) {
+                        existingTopics.push(item.topic);
+                        processingCount++;
+                    }
+                });
             }
-        });
+        } catch (e) {
+            console.error('Error parsing processing data:', e);
+        }
     }
 
     console.log(`📊 Existing topics collected: ${pendingCount} from Pending, ${historyCount} from History, ${processingCount} from Processing (Total: ${existingTopics.length})`);
