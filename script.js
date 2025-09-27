@@ -1498,6 +1498,46 @@ Format your response as JSON with this exact structure:
         }
     }
 
+    // Sync scheduled posts from processing data that has posting: 'scheduled'
+    function syncScheduledPostsFromProcessingData() {
+        // Initialize scheduled posts array if it doesn't exist
+        if (!Array.isArray(scheduledPosts)) {
+            scheduledPosts = [];
+        }
+
+        // Find all processing items that are scheduled
+        const scheduledProcessingItems = processingData.filter(item =>
+            item.posting === 'scheduled' && item.scheduledDate
+        );
+
+        // Add any missing scheduled posts to the calendar
+        for (const item of scheduledProcessingItems) {
+            const existingPost = scheduledPosts.find(post =>
+                post.title.includes(item.topic) &&
+                new Date(post.scheduledTime).getTime() === new Date(item.scheduledDate).getTime()
+            );
+
+            if (!existingPost) {
+                const videoType = item.ytType || 'Long';
+                const post = {
+                    id: Date.now() + Math.random(), // Ensure unique ID
+                    title: `${item.topic} (${videoType})`,
+                    platform: 'YouTube',
+                    scheduledTime: item.scheduledDate,
+                    status: 'scheduled',
+                    addedAt: new Date().toISOString()
+                };
+                scheduledPosts.push(post);
+                console.log(`📅 Synced scheduled post to calendar: ${post.title}`);
+            }
+        }
+
+        // Save the updated scheduled posts if we added any
+        if (scheduledProcessingItems.length > 0) {
+            localStorage.setItem('bc_generator_scheduled_posts', JSON.stringify(scheduledPosts));
+        }
+    }
+
     // LocalStorage functions
     function saveToLocalStorage() {
         try {
@@ -1562,6 +1602,9 @@ Format your response as JSON with this exact structure:
             if (savedProcessing) {
                 processingData = JSON.parse(savedProcessing);
                 populateProcessingTable();
+
+                // Sync scheduled posts after loading processing data
+                syncScheduledPostsFromProcessingData();
             }
 
             if (savedNextId) {
@@ -3716,8 +3759,12 @@ Format your response as JSON with this exact structure:
         if (saved) {
             scheduledPosts = JSON.parse(saved);
         }
+
+        // Sync scheduled posts from processing data
+        syncScheduledPostsFromProcessingData();
         renderCalendar();
     }
+
 
     // Save scheduled posts to localStorage
     function saveScheduledPosts() {
