@@ -3338,18 +3338,18 @@ Format your response as JSON with this exact structure:
                         console.log(`⏳ ${item.topic}: No images found, waiting for script or generation`);
                     }
 
-                    // Update audio status with detailed verification
+                    // Update audio status - simplified to just show "done" when audio files exist
                     if (status.audioCount > 0) {
+                        // If there are any audio files, mark as done
+                        item.voiceOvers = 'done';
+
+                        // Still log detailed info for debugging
                         if (item.totalScenes && status.audioCount === item.totalScenes) {
-                            item.voiceOvers = 'done';
                             console.log(`🔊 ${item.topic}: All ${status.audioCount} audio files complete`);
+                        } else if (item.totalScenes) {
+                            console.log(`🎵 ${item.topic}: ${status.audioCount}/${item.totalScenes} audio files found - displaying as done`);
                         } else {
-                            item.voiceOvers = `${status.audioCount} audios`;
-                            if (item.totalScenes) {
-                                console.log(`🎵 ${item.topic}: ${status.audioCount}/${item.totalScenes} audio files (missing: ${item.totalScenes - status.audioCount})`);
-                            } else {
-                                console.log(`🎵 ${item.topic}: Found ${status.audioCount} audio files, total scenes unknown`);
-                            }
+                            console.log(`🎵 ${item.topic}: Found ${status.audioCount} audio files - displaying as done`);
                         }
 
                         // Log which specific audio files exist
