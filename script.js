@@ -4652,9 +4652,10 @@ Return ONLY a JSON array of objects with "topic" and "info" properties. Example 
     }
 }
 
-// Get all existing topics from Pending Topics and History
+// Get all existing topics from Pending Topics, Processing, and History
 function getExistingTopics() {
     const existingTopics = [];
+    let pendingCount = 0, historyCount = 0, processingCount = 0;
 
     // Get topics from pending data using the correct localStorage key
     const pendingDataStr = localStorage.getItem('bc_generator_data');
@@ -4665,6 +4666,7 @@ function getExistingTopics() {
                 pendingData.forEach(item => {
                     if (item.topic) {
                         existingTopics.push(item.topic);
+                        pendingCount++;
                     }
                 });
             }
@@ -4674,22 +4676,27 @@ function getExistingTopics() {
     }
 
     // Get topics from history data
-    if (window.historyData && Array.isArray(window.historyData)) {
-        window.historyData.forEach(item => {
+    if (historyData && Array.isArray(historyData)) {
+        historyData.forEach(item => {
             if (item.topic) {
                 existingTopics.push(item.topic);
+                historyCount++;
             }
         });
     }
 
     // Get topics from processing data
-    if (window.processingData && Array.isArray(window.processingData)) {
-        window.processingData.forEach(item => {
+    if (processingData && Array.isArray(processingData)) {
+        processingData.forEach(item => {
             if (item.topic) {
                 existingTopics.push(item.topic);
+                processingCount++;
             }
         });
     }
+
+    console.log(`📊 Existing topics collected: ${pendingCount} from Pending, ${historyCount} from History, ${processingCount} from Processing (Total: ${existingTopics.length})`);
+    console.log('🔍 All existing topics:', existingTopics);
 
     return existingTopics;
 }
