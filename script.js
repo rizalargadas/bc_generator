@@ -725,7 +725,7 @@ Format your response as JSON with this exact structure:
                 // Check if paused during loop
                 if (pausedItems.has(processingItem.id)) {
                     console.log(`⏸️ Voice generation paused for ${processingItem.topic} at scene ${scene.sceneNumber}`);
-                    processingItem.voiceOvers = `generating... (${i}/${totalScenes} done - paused)`;
+                    processingItem.voiceOvers = `generating... (${i}/${scenes.length} done - paused)`;
                     populateProcessingTable();
                     saveToLocalStorage();
                     return; // Exit gracefully without error
@@ -1019,7 +1019,7 @@ Format your response as JSON with this exact structure:
                 // Check if paused during loop
                 if (pausedItems.has(processingItem.id)) {
                     console.log(`⏸️ Image generation paused for ${processingItem.topic} at scene ${i + 1}`);
-                    processingItem.image = `${i}/${totalScenes} done (paused)`;
+                    processingItem.image = `${i}/${scenes.length} done (paused)`;
                     populateProcessingTable();
                     saveToLocalStorage();
                     return; // Exit gracefully without error
@@ -1280,7 +1280,7 @@ Format your response as JSON with this exact structure:
                     }
                 }
 
-                processingItem.image = 'done';
+                processingItem.image = 'Ready';
 
                 // Automatically start voice generation when images are complete
                 console.log(`🎤 Images complete for ${processingItem.topic} - starting voice generation...`);
@@ -1909,7 +1909,7 @@ Format your response as JSON with this exact structure:
         try {
             // Check all prerequisites
             const scriptReady = item.script === 'done';
-            const imageReady = item.image && (item.image === 'done' || item.image.includes('done'));
+            const imageReady = item.image && (item.image === 'Ready' || item.image === 'done' || item.image.includes('done'));
             const voiceReady = item.voiceOvers === 'done';
             const videoReady = item.video === 'done';
 
@@ -3303,7 +3303,7 @@ Format your response as JSON with this exact structure:
                     if (status.imageCount > 0) {
                         if (item.totalScenes) {
                             if (status.imageCount === item.totalScenes) {
-                                item.image = 'done';
+                                item.image = 'Ready';
                                 console.log(`✅ ${item.topic}: All ${status.imageCount} images complete`);
 
                                 // Auto-trigger voice generation if images are complete but voice is not
@@ -3409,14 +3409,14 @@ Format your response as JSON with this exact structure:
 
         const completedItems = processingData.filter(item =>
             item.script === 'done' &&
-            item.image === 'done' &&
+            (item.image === 'Ready' || item.image === 'done') &&
             item.voiceOvers === 'done' &&
             item.video === 'done'
         ).length;
 
         const partialItems = processingData.filter(item =>
             item.script === 'done' ||
-            (item.image !== 'waiting...' && item.image !== 'done') ||
+            (item.image !== 'waiting...' && item.image !== 'Ready' && item.image !== 'done') ||
             (item.voiceOvers !== 'waiting...' && item.voiceOvers !== 'done') ||
             (item.video !== 'waiting...' && item.video !== 'done')
         ).length - completedItems;
