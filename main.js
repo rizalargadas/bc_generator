@@ -258,6 +258,94 @@ ipcMain.handle('check-processing-status', async (event, { outputDir, topicId }) 
     }
 });
 
+// Copy brand images to the video's images folder
+ipcMain.handle('copy-brand-images', async (event, { outputDir, topicId, videoType }) => {
+    try {
+        console.log(`Copying brand images for ${videoType} video: ${topicId}`);
+
+        const imagesDir = path.join(outputDir, `${topicId}-images`);
+        const brandImagesDir = path.join(__dirname, 'brand-images');
+
+        // Ensure images directory exists
+        if (!fs.existsSync(imagesDir)) {
+            fs.mkdirSync(imagesDir, { recursive: true });
+        }
+
+        // Check if brand-images directory exists
+        if (!fs.existsSync(brandImagesDir)) {
+            console.error(`Brand images directory not found: ${brandImagesDir}`);
+            return { success: false, error: 'Brand images directory not found' };
+        }
+
+        const copiedFiles = [];
+        const errors = [];
+
+        // Always copy watermark for both Long and Shorts
+        const watermarkSource = path.join(brandImagesDir, 'black-chapter-watermark.png');
+        const watermarkTarget = path.join(imagesDir, 'black-chapter-watermark.png');
+
+        if (fs.existsSync(watermarkSource)) {
+            try {
+                fs.copyFileSync(watermarkSource, watermarkTarget);
+                copiedFiles.push('black-chapter-watermark.png');
+                console.log(`Copied watermark to ${videoType} folder`);
+            } catch (error) {
+                errors.push(`Failed to copy watermark: ${error.message}`);
+            }
+        } else {
+            errors.push('Watermark file not found');
+        }
+
+        // Copy appropriate logo based on video type
+        if (videoType === 'Long') {
+            const logoSource = path.join(brandImagesDir, 'long-black-chapter-logo.png');
+            const logoTarget = path.join(imagesDir, 'long-black-chapter-logo.png');
+
+            if (fs.existsSync(logoSource)) {
+                try {
+                    fs.copyFileSync(logoSource, logoTarget);
+                    copiedFiles.push('long-black-chapter-logo.png');
+                    console.log(`Copied Long logo to folder`);
+                } catch (error) {
+                    errors.push(`Failed to copy Long logo: ${error.message}`);
+                }
+            } else {
+                errors.push('Long logo file not found');
+            }
+        } else if (videoType === 'Shorts') {
+            const logoSource = path.join(brandImagesDir, 'shorts-black-chapter-logo.png');
+            const logoTarget = path.join(imagesDir, 'shorts-black-chapter-logo.png');
+
+            if (fs.existsSync(logoSource)) {
+                try {
+                    fs.copyFileSync(logoSource, logoTarget);
+                    copiedFiles.push('shorts-black-chapter-logo.png');
+                    console.log(`Copied Shorts logo to folder`);
+                } catch (error) {
+                    errors.push(`Failed to copy Shorts logo: ${error.message}`);
+                }
+            } else {
+                errors.push('Shorts logo file not found');
+            }
+        }
+
+        console.log(`Brand images copy completed. Copied: ${copiedFiles.length} files`);
+        if (errors.length > 0) {
+            console.warn('Errors during copy:', errors);
+        }
+
+        return {
+            success: copiedFiles.length > 0,
+            copiedFiles,
+            errors,
+            targetDir: imagesDir
+        };
+    } catch (error) {
+        console.error('Error copying brand images:', error);
+        return { success: false, error: error.message };
+    }
+});
+
 // Copy images from Long video to Shorts video
 ipcMain.handle('copy-images-long-to-shorts', async (event, { longOutputDir, longTopicId, shortsOutputDir, shortsTopicId }) => {
     try {

@@ -917,6 +917,19 @@ Format your response as JSON with this exact structure:
 
             console.log(`Successfully copied ${copyResult.copiedCount} images for Shorts video`);
 
+            // Copy brand images for Shorts
+            const brandResult = await ipcRenderer.invoke('copy-brand-images', {
+                outputDir: processingItem.outputDir,
+                topicId: processingItem.id,
+                videoType: 'Shorts'
+            });
+
+            if (brandResult.success) {
+                console.log(`✅ Copied ${brandResult.copiedFiles.length} brand images for Shorts`);
+            } else {
+                console.warn(`⚠️ Failed to copy some brand images for Shorts:`, brandResult.errors);
+            }
+
             // Update the processing item status
             processingItem.image = 'done';
             processingItem.totalScenes = copyResult.copiedCount;
@@ -1250,6 +1263,21 @@ Format your response as JSON with this exact structure:
                     console.log(`ℹ️ No thumbnail prompt found for ${processingItem.topic}, skipping thumbnail generation`);
                 } else {
                     console.log(`ℹ️ Skipping thumbnail generation for Shorts video: ${processingItem.topic}`);
+                }
+
+                // Copy brand images for Long videos
+                if (processingItem.ytType === 'Long' || !processingItem.ytType) {
+                    const brandResult = await ipcRenderer.invoke('copy-brand-images', {
+                        outputDir: processingItem.outputDir,
+                        topicId: processingItem.id,
+                        videoType: 'Long'
+                    });
+
+                    if (brandResult.success) {
+                        console.log(`✅ Copied ${brandResult.copiedFiles.length} brand images for Long video`);
+                    } else {
+                        console.warn(`⚠️ Failed to copy some brand images for Long video:`, brandResult.errors);
+                    }
                 }
 
                 processingItem.image = 'done';
