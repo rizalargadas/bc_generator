@@ -902,7 +902,7 @@ Format your response as JSON with this exact structure:
                 throw new Error('Long video not found or has no output directory');
             }
 
-            // Check if Long video has images
+            // Check if Long video image generation is completely done
             const { ipcRenderer } = require('electron');
             const longStatus = await ipcRenderer.invoke('check-processing-status', {
                 outputDir: longItem.outputDir,
@@ -911,6 +911,16 @@ Format your response as JSON with this exact structure:
 
             if (!longStatus.success || longStatus.status.imageCount === 0) {
                 throw new Error('Long video has no images to copy. Generate Long video images first.');
+            }
+
+            // Verify that Long video image generation is actually complete
+            if (longItem.image !== 'Done') {
+                throw new Error('Long video image generation is not complete yet. Wait for Long video to finish generating all images.');
+            }
+
+            // Additional check: ensure Long has all expected scene images
+            if (longItem.totalScenes && longStatus.status.sceneImageCount < longItem.totalScenes) {
+                throw new Error(`Long video image generation incomplete: ${longStatus.status.sceneImageCount}/${longItem.totalScenes} scenes. Wait for all Long video images to be generated.`);
             }
 
             console.log(`Copying ${longStatus.status.imageCount} images from Long to Shorts`);
