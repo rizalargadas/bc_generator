@@ -1851,7 +1851,7 @@ Format your response as JSON with this exact structure:
         if (status === 'writing...' || status === 'writing') return 'status-writing';
         if (status === 'generating...' || status === 'generating') return 'status-generating';
         if (status === 'waiting...' || status === 'waiting') return 'status-waiting';
-        if (status === 'done') return 'status-done';
+        if (status === 'done' || status === 'Done') return 'status-done';
         if (status === 'ready to schedule') return 'status-ready';
         if (status === 'scheduled') return 'status-scheduled';
         if (status === 'failed') return 'status-failed';
