@@ -1777,8 +1777,14 @@ Format your response as JSON with this exact structure:
     }
 
     // Check thumbnail status for a processing item (for UI display)
-    async function checkThumbnailStatus(outputDir, thumbnailTd) {
+    async function checkThumbnailStatus(outputDir, thumbnailTd, ytType) {
         try {
+            // Shorts don't need thumbnails, so always show Ready
+            if (ytType === 'Shorts') {
+                thumbnailTd.innerHTML = `<span class="status ready">Ready</span>`;
+                return;
+            }
+
             const { ipcRenderer } = require('electron');
             const result = await ipcRenderer.invoke('check-thumbnail', { outputDir });
 
@@ -1798,8 +1804,13 @@ Format your response as JSON with this exact structure:
     }
 
     // Check thumbnail status for a processing item (for logic)
-    async function checkItemThumbnail(outputDir) {
+    async function checkItemThumbnail(outputDir, ytType) {
         try {
+            // Shorts don't need thumbnails, so always return Ready
+            if (ytType === 'Shorts') {
+                return { success: true, hasThumbnail: true };
+            }
+
             if (!outputDir) return { success: false, hasThumbnail: false };
 
             const { ipcRenderer } = require('electron');
@@ -1821,7 +1832,7 @@ Format your response as JSON with this exact structure:
             const videoReady = item.video === 'done';
 
             // Check thumbnail status
-            const thumbnailResult = await checkItemThumbnail(item.outputDir);
+            const thumbnailResult = await checkItemThumbnail(item.outputDir, item.ytType);
             const thumbnailReady = thumbnailResult && thumbnailResult.hasThumbnail;
 
             // Check if already scheduled
@@ -1982,7 +1993,10 @@ Format your response as JSON with this exact structure:
 
             // Check thumbnail status asynchronously
             if (item.outputDir) {
-                checkThumbnailStatus(item.outputDir, thumbnailTd);
+                checkThumbnailStatus(item.outputDir, thumbnailTd, item.ytType);
+            } else if (item.ytType === 'Shorts') {
+                // Shorts don't need thumbnails
+                thumbnailTd.innerHTML = `<span class="status ready">Ready</span>`;
             } else {
                 thumbnailTd.innerHTML = `<span class="status not-ready">Not Ready</span>`;
             }
@@ -3277,7 +3291,7 @@ Format your response as JSON with this exact structure:
                     }
 
                     // Update posting status - now includes thumbnail check
-                    const thumbnailResult = await checkItemThumbnail(item.outputDir);
+                    const thumbnailResult = await checkItemThumbnail(item.outputDir, item.ytType);
                     const hasThumbnail = thumbnailResult && thumbnailResult.hasThumbnail;
 
                     if (status.hasScript && status.imageCount > 0 && status.audioCount > 0 && status.hasVideo && hasThumbnail) {
