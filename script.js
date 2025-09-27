@@ -3412,43 +3412,76 @@ Format your response as JSON with this exact structure:
                         }
                     }
 
-                    // Update image status - simplified to just Ready or waiting
-                    if (status.sceneImageCount > 0) {
-                        if (item.totalScenes) {
-                            if (status.sceneImageCount >= item.totalScenes) {
-                                item.image = 'Done';
-                                console.log(`✅ ${item.topic}: All ${status.sceneImageCount} scene images complete (${status.imageCount} total files including brand images)`);
+                    // Update image status - handle Shorts videos differently
+                    if (item.ytType === 'Shorts') {
+                        // For Shorts videos, check if Long counterpart has images
+                        const baseId = item.id.replace('_S', '');
+                        const longId = baseId + '_L';
+                        const longItem = processingData.find(longItem => longItem.id === longId);
 
-                                // Auto-trigger voice generation if images are complete but voice is not
-                                if (status.audioCount === 0 || (item.totalScenes && status.audioCount < item.totalScenes)) {
-                                    if (!itemsToGenerateVoice.includes(item)) {
-                                        itemsToGenerateVoice.push(item);
-                                        console.log(`🎯 ${item.topic}: Marked for auto voice generation (images complete, voice missing)`);
-                                    }
+                        if (status.sceneImageCount > 0) {
+                            // Shorts has images (copied from Long), mark as done
+                            item.image = 'Done';
+                            console.log(`✅ ${item.topic}: Shorts images copied from Long (${status.sceneImageCount} images)`);
+
+                            // Auto-trigger voice generation if images are complete but voice is not
+                            if (status.audioCount === 0 || (item.totalScenes && status.audioCount < item.totalScenes)) {
+                                if (!itemsToGenerateVoice.includes(item)) {
+                                    itemsToGenerateVoice.push(item);
+                                    console.log(`🎯 ${item.topic}: Marked for auto voice generation (images complete, voice missing)`);
                                 }
-                            } else {
-                                item.image = 'generating...';
-                                console.log(`🔄 ${item.topic}: ${status.sceneImageCount}/${item.totalScenes} scene images (missing: ${item.totalScenes - status.sceneImageCount})`);
+                            }
+                        } else if (longItem && longItem.image === 'Done') {
+                            // Long has images but Shorts doesn't, mark for copying
+                            item.image = 'waiting...';
+                            if (!itemsToGenerateImages.includes(item)) {
+                                itemsToGenerateImages.push(item);
+                                console.log(`🎯 ${item.topic}: Shorts marked for image copying (Long images ready)`);
                             }
                         } else {
-                            // No total scenes info available, assume ready if we have scene images
-                            item.image = 'Done';
-                            console.log(`📷 ${item.topic}: Found ${status.sceneImageCount} scene images, total scenes unknown - marking as Ready`);
+                            // Long doesn't have images yet, wait
+                            item.image = 'waiting...';
+                            console.log(`⏳ ${item.topic}: Shorts waiting for Long video images`);
                         }
-
-                        // Log which specific image files exist
-                        if (status.existingImages.length > 0) {
-                            console.log(`📁 ${item.topic}: Image scenes found: [${status.existingImages.sort((a,b) => a-b).join(', ')}]`);
-                        }
-                    } else if (status.hasScript && !itemsToGenerateImages.includes(item)) {
-                        // Script exists but no images yet, mark for generation
-                        item.image = 'waiting...';
-                        itemsToGenerateImages.push(item);
-                        console.log(`🎯 ${item.topic}: Marked for auto image generation (script ready, no images)`);
                     } else {
-                        // No script yet, keep waiting
-                        item.image = 'waiting...';
-                        console.log(`⏳ ${item.topic}: No images found, waiting for script or generation`);
+                        // For Long videos, use original logic
+                        if (status.sceneImageCount > 0) {
+                            if (item.totalScenes) {
+                                if (status.sceneImageCount >= item.totalScenes) {
+                                    item.image = 'Done';
+                                    console.log(`✅ ${item.topic}: All ${status.sceneImageCount} scene images complete (${status.imageCount} total files including brand images)`);
+
+                                    // Auto-trigger voice generation if images are complete but voice is not
+                                    if (status.audioCount === 0 || (item.totalScenes && status.audioCount < item.totalScenes)) {
+                                        if (!itemsToGenerateVoice.includes(item)) {
+                                            itemsToGenerateVoice.push(item);
+                                            console.log(`🎯 ${item.topic}: Marked for auto voice generation (images complete, voice missing)`);
+                                        }
+                                    }
+                                } else {
+                                    item.image = 'generating...';
+                                    console.log(`🔄 ${item.topic}: ${status.sceneImageCount}/${item.totalScenes} scene images (missing: ${item.totalScenes - status.sceneImageCount})`);
+                                }
+                            } else {
+                                // No total scenes info available, assume ready if we have scene images
+                                item.image = 'Done';
+                                console.log(`📷 ${item.topic}: Found ${status.sceneImageCount} scene images, total scenes unknown - marking as Ready`);
+                            }
+
+                            // Log which specific image files exist
+                            if (status.existingImages.length > 0) {
+                                console.log(`📁 ${item.topic}: Image scenes found: [${status.existingImages.sort((a,b) => a-b).join(', ')}]`);
+                            }
+                        } else if (status.hasScript && !itemsToGenerateImages.includes(item)) {
+                            // Script exists but no images yet, mark for generation
+                            item.image = 'waiting...';
+                            itemsToGenerateImages.push(item);
+                            console.log(`🎯 ${item.topic}: Marked for auto image generation (script ready, no images)`);
+                        } else {
+                            // No script yet, keep waiting
+                            item.image = 'waiting...';
+                            console.log(`⏳ ${item.topic}: No images found, waiting for script or generation`);
+                        }
                     }
 
                     // Update audio status - simplified to just show "done" when audio files exist
