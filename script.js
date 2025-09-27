@@ -3672,6 +3672,54 @@ Format your response as JSON with this exact structure:
     }
 
     // Find the next available date for scheduling based on the weekly pattern
+    // Find next available date based on the scheduling pattern
+    // Monday - Topic 1 Long, Tuesday - Topic 1 Shorts
+    // Wednesday - Topic 2 Long, Thursday - Topic 2 Shorts
+    // Friday - Topic 3 Long, Saturday - Topic 3 Shorts
+    // Sunday - REST (no posts)
+    function findNextAvailableDateForVideoType(videoType) {
+        const today = new Date();
+        let checkDate = new Date(today);
+
+        // Start checking from today
+        while (true) {
+            const dayOfWeek = checkDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+
+            // Skip Sunday (day 0) - REST DAY
+            if (dayOfWeek === 0) {
+                checkDate.setDate(checkDate.getDate() + 1);
+                continue;
+            }
+
+            // Check if this date already has a post scheduled
+            const dateStr = checkDate.toDateString();
+            const existingPost = scheduledPosts.find(post => {
+                const postDate = new Date(post.scheduledTime);
+                return postDate.toDateString() === dateStr;
+            });
+
+            if (!existingPost) {
+                // Check if this day matches the video type pattern
+                const isLongDay = (dayOfWeek === 1 || dayOfWeek === 3 || dayOfWeek === 5); // Mon, Wed, Fri
+                const isShortsDay = (dayOfWeek === 2 || dayOfWeek === 4 || dayOfWeek === 6); // Tue, Thu, Sat
+
+                if ((videoType === 'Long' && isLongDay) || (videoType === 'Shorts' && isShortsDay)) {
+                    return checkDate;
+                }
+            }
+
+            // Move to next day
+            checkDate.setDate(checkDate.getDate() + 1);
+
+            // Prevent infinite loop - limit to 60 days in future
+            if (checkDate.getTime() - today.getTime() > 60 * 24 * 60 * 60 * 1000) {
+                break;
+            }
+        }
+
+        return null; // No available date found in next 60 days
+    }
+
     function findNextAvailableDate() {
         const today = new Date();
         let checkDate = new Date(today);
@@ -3711,36 +3759,13 @@ Format your response as JSON with this exact structure:
 
     // Determine if we should schedule Long or Shorts based on existing schedule
     function determineVideoType(scheduledDate, item) {
-        const dayOfWeek = scheduledDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-
-        // Check what's already scheduled for consecutive days to maintain pairing
-        const dateStr = scheduledDate.toDateString();
-        const nextDay = new Date(scheduledDate);
-        nextDay.setDate(nextDay.getDate() + 1);
-        const prevDay = new Date(scheduledDate);
-        prevDay.setDate(prevDay.getDate() - 1);
-
-        const nextDayPost = scheduledPosts.find(post => {
-            const postDate = new Date(post.scheduledTime);
-            return postDate.toDateString() === nextDay.toDateString();
-        });
-
-        const prevDayPost = scheduledPosts.find(post => {
-            const postDate = new Date(post.scheduledTime);
-            return postDate.toDateString() === prevDay.toDateString();
-        });
-
-        // If item is already Long or Shorts, respect that
+        // If item already has a specific type, return it
         if (item.ytType === 'Long' || item.ytType === 'Shorts') {
             return item.ytType;
         }
 
-        // Default pattern: Monday/Wednesday/Friday/Saturday = Long, Tuesday/Thursday = Shorts
-        if (dayOfWeek === 1 || dayOfWeek === 3 || dayOfWeek === 5 || dayOfWeek === 6) {
-            return 'Long';
-        } else {
-            return 'Shorts';
-        }
+        // Default to Long if no specific type
+        return 'Long';
     }
 
     // Schedule Now functionality
@@ -3752,15 +3777,15 @@ Format your response as JSON with this exact structure:
 
         const item = processingData[itemIndex];
 
-        // Find next available date
-        const scheduledDate = findNextAvailableDate();
+        // Find next available date based on the item's video type
+        const videoType = item.ytType || 'Long'; // Default to Long if not specified
+        const scheduledDate = findNextAvailableDateForVideoType(videoType);
         if (!scheduledDate) {
-            alert('No available dates found in the next 60 days. Please check your calendar.');
+            alert(`No available ${videoType} slots found in the next 60 days. Please check your calendar.`);
             return;
         }
 
-        // Determine video type and time
-        const videoType = determineVideoType(scheduledDate, item);
+        // Determine time based on day
         const dayOfWeek = scheduledDate.getDay();
         const isWeekend = dayOfWeek === 6 || dayOfWeek === 0; // Saturday = 6, Sunday = 0
         const scheduleTime = isWeekend ? weekendScheduleTime : weekdayScheduleTime;
