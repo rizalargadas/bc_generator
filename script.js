@@ -4567,7 +4567,11 @@ Format your response as JSON with this exact structure:
 
         historyData.forEach(item => {
             if (item.topic && item.topic.trim()) {
-                topics.add(item.topic.trim());
+                // Clean the topic text to remove weird Unicode symbols
+                const cleanedTopic = cleanText(item.topic.trim());
+                if (cleanedTopic) {
+                    topics.add(cleanedTopic);
+                }
             }
         });
 
