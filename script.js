@@ -1280,7 +1280,7 @@ Format your response as JSON with this exact structure:
                     }
                 }
 
-                processingItem.image = 'Ready';
+                processingItem.image = 'Done';
 
                 // Automatically start voice generation when images are complete
                 console.log(`🎤 Images complete for ${processingItem.topic} - starting voice generation...`);
@@ -1910,7 +1910,7 @@ Format your response as JSON with this exact structure:
         try {
             // Check all prerequisites
             const scriptReady = item.script === 'done';
-            const imageReady = item.image && (item.image === 'Ready' || item.image === 'done' || item.image.includes('done'));
+            const imageReady = item.image && (item.image === 'Done' || item.image === 'done' || item.image.includes('done'));
             const voiceReady = item.voiceOvers === 'done';
             const videoReady = item.video === 'done';
 
@@ -3304,7 +3304,7 @@ Format your response as JSON with this exact structure:
                     if (status.sceneImageCount > 0) {
                         if (item.totalScenes) {
                             if (status.sceneImageCount >= item.totalScenes) {
-                                item.image = 'Ready';
+                                item.image = 'Done';
                                 console.log(`✅ ${item.topic}: All ${status.sceneImageCount} scene images complete (${status.imageCount} total files including brand images)`);
 
                                 // Auto-trigger voice generation if images are complete but voice is not
@@ -3320,7 +3320,7 @@ Format your response as JSON with this exact structure:
                             }
                         } else {
                             // No total scenes info available, assume ready if we have scene images
-                            item.image = 'Ready';
+                            item.image = 'Done';
                             console.log(`📷 ${item.topic}: Found ${status.sceneImageCount} scene images, total scenes unknown - marking as Ready`);
                         }
 
@@ -3410,14 +3410,14 @@ Format your response as JSON with this exact structure:
 
         const completedItems = processingData.filter(item =>
             item.script === 'done' &&
-            (item.image === 'Ready' || item.image === 'done') &&
+            (item.image === 'Done' || item.image === 'done') &&
             item.voiceOvers === 'done' &&
             item.video === 'done'
         ).length;
 
         const partialItems = processingData.filter(item =>
             item.script === 'done' ||
-            (item.image !== 'waiting...' && item.image !== 'Ready' && item.image !== 'done') ||
+            (item.image !== 'waiting...' && item.image !== 'Done' && item.image !== 'done') ||
             (item.voiceOvers !== 'waiting...' && item.voiceOvers !== 'done') ||
             (item.video !== 'waiting...' && item.video !== 'done')
         ).length - completedItems;
