@@ -4544,7 +4544,7 @@ async function generateTopics() {
                 model: model,
                 messages: [{
                     role: 'system',
-                    content: `You are a YouTube content creator specializing in dark history topics. Generate ${count} unique, engaging video topic titles that would perform well on YouTube.
+                    content: `You are a YouTube content creator specializing in dark history topics. Generate ${count} unique, engaging video topics with titles and descriptions that would perform well on YouTube.
 
 IMPORTANT: Avoid any topics that might appear in this list of existing topics: ${existingTopics.join(', ')}
 
@@ -4556,16 +4556,23 @@ Focus on:
 - Controversial historical figures
 - Ancient mysteries and lost civilizations
 
-Make each title:
-- Compelling and click-worthy for YouTube
-- 50-80 characters long
-- Specific enough to create a focused video
-- Different from the existing topics provided
+For each topic, provide:
+- Title: Compelling and click-worthy for YouTube (50-80 characters)
+- Info: Brief description explaining what the topic is about (2-3 sentences, 100-200 characters)
 
-Return ONLY a JSON array of topic strings, nothing else. Example format:
-["Topic 1 Here", "Topic 2 Here", "Topic 3 Here"]`
+Return ONLY a JSON array of objects with "topic" and "info" properties. Example format:
+[
+  {
+    "topic": "The Disappearance of the Roanoke Colony",
+    "info": "The mysterious vanishing of 115 English colonists in 1590. No trace was ever found except the word 'CROATOAN' carved into a tree."
+  },
+  {
+    "topic": "The Beast of Gévaudan",
+    "info": "A wolf-like creature that terrorized French countryside in the 1760s, killing over 100 people before being mysteriously eliminated."
+  }
+]`
                 }],
-                max_tokens: 1000,
+                max_tokens: 2000,
                 temperature: 0.9
             })
         });
@@ -4607,8 +4614,8 @@ Return ONLY a JSON array of topic strings, nothing else. Example format:
 
         // Filter out any topics that might still be duplicates (case-insensitive)
         const lowercaseExisting = existingTopics.map(t => t.toLowerCase());
-        const uniqueTopics = topics.filter(topic =>
-            !lowercaseExisting.includes(topic.toLowerCase())
+        const uniqueTopics = topics.filter(topicObj =>
+            !lowercaseExisting.includes(topicObj.topic.toLowerCase())
         );
 
         console.log(`After duplicate filtering: ${uniqueTopics.length} unique topics`);
@@ -4692,10 +4699,13 @@ function displayGeneratedTopics(topics) {
     topicListDiv.innerHTML = '';
 
     // Create topic items
-    topics.forEach((topic, index) => {
+    topics.forEach((topicObj, index) => {
         const topicItem = document.createElement('div');
         topicItem.className = 'topic-item';
-        topicItem.textContent = `${index + 1}. ${topic}`;
+        topicItem.innerHTML = `
+            <div style="margin-bottom: 5px;"><strong>${index + 1}. ${topicObj.topic}</strong></div>
+            <div style="font-size: 0.9em; color: #666; margin-left: 15px;">${topicObj.info}</div>
+        `;
         topicListDiv.appendChild(topicItem);
     });
 
@@ -4738,14 +4748,14 @@ function moveTopicsToPending() {
         console.log('Current pending topics before adding:', pendingTopics);
 
         // Add each topic to pending data - create both Long and Shorts versions
-        generatedTopics.forEach((topic, index) => {
+        generatedTopics.forEach((topicObj, index) => {
             // Don't set _topicId here - let the system generate it automatically
             // The existing system will generate proper 4-character IDs when loading
 
             // Create Long version
             const longTopic = {
-                'Topic': topic,
-                'Info': 'Generated topic for dark history content',
+                'Topic': topicObj.topic,
+                'Info': topicObj.info,
                 'YT Type': 'Long'
                 // No _topicId - will be generated automatically
             };
@@ -4754,8 +4764,8 @@ function moveTopicsToPending() {
 
             // Create Shorts version
             const shortTopic = {
-                'Topic': topic,
-                'Info': 'Generated topic for dark history content',
+                'Topic': topicObj.topic,
+                'Info': topicObj.info,
                 'YT Type': 'Shorts'
                 // No _topicId - will be generated automatically
             };
