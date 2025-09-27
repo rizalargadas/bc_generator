@@ -1498,8 +1498,8 @@ Format your response as JSON with this exact structure:
         }
     }
 
-    // Sync scheduled posts from processing data that has posting: 'scheduled'
-    function syncScheduledPostsFromProcessingData() {
+    // Sync scheduled posts from both processing data and history data
+    function syncScheduledPostsToCalendar() {
         // Initialize scheduled posts array if it doesn't exist
         if (!Array.isArray(scheduledPosts)) {
             scheduledPosts = [];
@@ -1510,15 +1510,25 @@ Format your response as JSON with this exact structure:
             item.posting === 'scheduled' && item.scheduledDate
         );
 
+        // Find all history items that have scheduled dates (from History tab)
+        const scheduledHistoryItems = historyData.filter(item =>
+            item.scheduledDate && (item.status === 'scheduled' || item.posting === 'scheduled')
+        );
+
+        // Combine both arrays for comprehensive sync
+        const allScheduledItems = [...scheduledProcessingItems, ...scheduledHistoryItems];
+
+        let addedCount = 0;
+
         // Add any missing scheduled posts to the calendar
-        for (const item of scheduledProcessingItems) {
+        for (const item of allScheduledItems) {
             const existingPost = scheduledPosts.find(post =>
                 post.title.includes(item.topic) &&
                 new Date(post.scheduledTime).getTime() === new Date(item.scheduledDate).getTime()
             );
 
             if (!existingPost) {
-                const videoType = item.ytType || 'Long';
+                const videoType = item.ytType || item.scheduledType || 'Long';
                 const post = {
                     id: Date.now() + Math.random(), // Ensure unique ID
                     title: `${item.topic} (${videoType})`,
@@ -1528,13 +1538,15 @@ Format your response as JSON with this exact structure:
                     addedAt: new Date().toISOString()
                 };
                 scheduledPosts.push(post);
+                addedCount++;
                 console.log(`📅 Synced scheduled post to calendar: ${post.title}`);
             }
         }
 
         // Save the updated scheduled posts if we added any
-        if (scheduledProcessingItems.length > 0) {
+        if (addedCount > 0) {
             localStorage.setItem('bc_generator_scheduled_posts', JSON.stringify(scheduledPosts));
+            console.log(`📅 Total synced ${addedCount} items from Processing (${scheduledProcessingItems.length}) + History (${scheduledHistoryItems.length}) to Calendar`);
         }
     }
 
@@ -1604,7 +1616,7 @@ Format your response as JSON with this exact structure:
                 populateProcessingTable();
 
                 // Sync scheduled posts after loading processing data
-                syncScheduledPostsFromProcessingData();
+                syncScheduledPostsToCalendar();
             }
 
             if (savedNextId) {
@@ -3806,7 +3818,7 @@ Format your response as JSON with this exact structure:
         }
 
         // Sync scheduled posts from processing data
-        syncScheduledPostsFromProcessingData();
+        syncScheduledPostsToCalendar();
         renderCalendar();
     }
 
@@ -4235,6 +4247,9 @@ Format your response as JSON with this exact structure:
             if (savedHistory) {
                 historyData = JSON.parse(savedHistory);
                 populateHistoryTable();
+
+                // Sync history items to calendar after loading
+                syncScheduledPostsToCalendar();
             }
         } catch (e) {
             console.warn('Could not load history from localStorage:', e);
