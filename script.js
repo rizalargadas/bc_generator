@@ -3656,6 +3656,59 @@ Format your response as JSON with this exact structure:
         refreshStatusBtn.addEventListener('click', refreshProcessingStatus);
     }
 
+    // Auto-refresh processing status every 10 seconds when items are being processed
+    let autoRefreshInterval;
+
+    function startAutoRefresh() {
+        // Clear any existing interval
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+        }
+
+        // Check if there are items that need monitoring
+        const hasActiveItems = processingData.some(item =>
+            item.script === 'generating...' ||
+            item.image === 'generating...' ||
+            item.image === 'waiting...' ||
+            item.voiceOvers === 'generating...' ||
+            item.voiceOvers === 'waiting...'
+        );
+
+        if (hasActiveItems) {
+            console.log('🔄 Starting auto-refresh for processing status (every 10 seconds)');
+            autoRefreshInterval = setInterval(async () => {
+                console.log('🔄 Auto-refreshing processing status...');
+                await refreshProcessingStatus();
+
+                // Check if we should stop auto-refresh (no more active items)
+                const stillHasActiveItems = processingData.some(item =>
+                    item.script === 'generating...' ||
+                    item.image === 'generating...' ||
+                    item.image === 'waiting...' ||
+                    item.voiceOvers === 'generating...' ||
+                    item.voiceOvers === 'waiting...'
+                );
+
+                if (!stillHasActiveItems) {
+                    console.log('✅ All items completed, stopping auto-refresh');
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                }
+            }, 10000); // 10 seconds
+        }
+    }
+
+    // Start auto-refresh when items are added to processing
+    const originalRefreshProcessingStatus = refreshProcessingStatus;
+    refreshProcessingStatus = async function() {
+        await originalRefreshProcessingStatus();
+        // Start auto-refresh if there are active items
+        startAutoRefresh();
+    };
+
+    // Call start auto-refresh on initial load
+    startAutoRefresh();
+
     // Function to open item folder - needs to be global for onclick access
     window.openItemFolder = async function(index) {
         const item = processingData[index];
