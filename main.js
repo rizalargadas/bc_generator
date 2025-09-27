@@ -522,3 +522,36 @@ ipcMain.handle('generate-voice', async (event, { text, apiKey, voiceId, sceneNum
         };
     }
 });
+
+// Delete folder and all its contents
+ipcMain.handle('delete-folder', async (event, { folderPath }) => {
+    try {
+        console.log(`Attempting to delete folder: ${folderPath}`);
+
+        // Check if folder exists
+        if (!fs.existsSync(folderPath)) {
+            console.log(`Folder does not exist: ${folderPath}`);
+            return {
+                success: true,
+                message: 'Folder does not exist (already deleted)'
+            };
+        }
+
+        // Delete the folder recursively
+        fs.rmSync(folderPath, { recursive: true, force: true });
+
+        console.log(`Successfully deleted folder: ${folderPath}`);
+        return {
+            success: true,
+            message: 'Folder deleted successfully'
+        };
+
+    } catch (error) {
+        console.error('Folder deletion error:', error);
+        return {
+            success: false,
+            error: error.message,
+            details: error.stack
+        };
+    }
+});

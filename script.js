@@ -4422,13 +4422,36 @@ Format your response as JSON with this exact structure:
     }
 
     if (deleteHistoryBtn) {
-        deleteHistoryBtn.addEventListener('click', function() {
+        deleteHistoryBtn.addEventListener('click', async function() {
             if (selectedHistoryRows.size === 0) return;
 
-            if (confirm(`Are you sure you want to delete ${selectedHistoryRows.size} selected item(s) from history?`)) {
+            if (confirm(`Are you sure you want to delete ${selectedHistoryRows.size} selected item(s) from history and their folders?`)) {
                 // Convert to array and sort descending to avoid index issues
                 const indicesToDelete = Array.from(selectedHistoryRows).sort((a, b) => b - a);
 
+                // Delete folders first
+                const { ipcRenderer } = require('electron');
+                for (const index of indicesToDelete) {
+                    const item = historyData[index];
+                    if (item && item.outputDir) {
+                        try {
+                            console.log(`🗑️ Deleting folder for ${item.topic}: ${item.outputDir}`);
+                            const deleteResult = await ipcRenderer.invoke('delete-folder', {
+                                folderPath: item.outputDir
+                            });
+
+                            if (deleteResult.success) {
+                                console.log(`✅ Successfully deleted folder: ${item.outputDir}`);
+                            } else {
+                                console.warn(`⚠️ Failed to delete folder ${item.outputDir}: ${deleteResult.error}`);
+                            }
+                        } catch (error) {
+                            console.error(`❌ Error deleting folder ${item.outputDir}:`, error);
+                        }
+                    }
+                }
+
+                // Remove from history data
                 indicesToDelete.forEach(index => {
                     historyData.splice(index, 1);
                 });
