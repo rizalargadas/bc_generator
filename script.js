@@ -1308,7 +1308,8 @@ Format your response as JSON with this exact structure:
                     }
                 }
             } else {
-                processingItem.image = `${successCount}/${scenes.length} done`;
+                // Don't show confusing ratios, just show generating status
+                processingItem.image = 'generating...';
                 if (failedScenes.length > 0) {
                     processingItem.imageError = `Failed: scenes ${failedScenes.join(', ')}`;
                 }
@@ -3299,12 +3300,12 @@ Format your response as JSON with this exact structure:
                         }
                     }
 
-                    // Update image status with detailed verification
-                    if (status.imageCount > 0) {
+                    // Update image status - simplified to just Ready or waiting
+                    if (status.sceneImageCount > 0) {
                         if (item.totalScenes) {
-                            if (status.imageCount === item.totalScenes) {
+                            if (status.sceneImageCount >= item.totalScenes) {
                                 item.image = 'Ready';
-                                console.log(`✅ ${item.topic}: All ${status.imageCount} images complete`);
+                                console.log(`✅ ${item.topic}: All ${status.sceneImageCount} scene images complete (${status.imageCount} total files including brand images)`);
 
                                 // Auto-trigger voice generation if images are complete but voice is not
                                 if (status.audioCount === 0 || (item.totalScenes && status.audioCount < item.totalScenes)) {
@@ -3314,13 +3315,13 @@ Format your response as JSON with this exact structure:
                                     }
                                 }
                             } else {
-                                // Use the X/Y done format for partial completion
-                                item.image = `${status.imageCount}/${item.totalScenes} done`;
-                                console.log(`🔄 ${item.topic}: ${status.imageCount}/${item.totalScenes} images (missing: ${item.totalScenes - status.imageCount})`);
+                                item.image = 'generating...';
+                                console.log(`🔄 ${item.topic}: ${status.sceneImageCount}/${item.totalScenes} scene images (missing: ${item.totalScenes - status.sceneImageCount})`);
                             }
                         } else {
-                            item.image = `${status.imageCount} images`;
-                            console.log(`📷 ${item.topic}: Found ${status.imageCount} images, but total scenes unknown`);
+                            // No total scenes info available, assume ready if we have scene images
+                            item.image = 'Ready';
+                            console.log(`📷 ${item.topic}: Found ${status.sceneImageCount} scene images, total scenes unknown - marking as Ready`);
                         }
 
                         // Log which specific image files exist

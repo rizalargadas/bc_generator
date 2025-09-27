@@ -206,14 +206,20 @@ ipcMain.handle('check-processing-status', async (event, { outputDir, topicId }) 
             const imageFiles = fs.readdirSync(imagesDir).filter(f =>
                 f.endsWith('.png') || f.endsWith('.jpg') || f.endsWith('.jpeg')
             );
-            status.imageCount = imageFiles.length;
-            // Extract scene numbers from existing images
+
+            // Extract scene numbers from existing images (numbered files only)
             status.existingImages = imageFiles.map(f => {
                 const nameWithoutExt = f.replace(/\.(png|jpg|jpeg)$/i, '');
                 const sceneNum = parseInt(nameWithoutExt);
                 return isNaN(sceneNum) ? null : sceneNum;
             }).filter(n => n !== null);
-            console.log(`Images found: ${status.imageCount} files, scenes: [${status.existingImages.join(', ')}]`);
+
+            // Count only scene images (numbered files), not brand images
+            status.sceneImageCount = status.existingImages.length;
+            // Keep total count for reference
+            status.imageCount = imageFiles.length;
+
+            console.log(`Images found: ${status.imageCount} total files (${status.sceneImageCount} scene images), scenes: [${status.existingImages.join(', ')}]`);
         } else {
             console.log(`Images directory not found: ${imagesDir}`);
         }
