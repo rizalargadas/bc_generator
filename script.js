@@ -3867,8 +3867,9 @@ Format your response as JSON with this exact structure:
     function findNextAvailableDateForVideoType(videoType) {
         const today = new Date();
         let checkDate = new Date(today);
+        checkDate.setDate(checkDate.getDate() + 1); // Start from tomorrow
 
-        // Start checking from today
+        // Start checking from tomorrow (never schedule for today or past dates)
         while (true) {
             const dayOfWeek = checkDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
 
@@ -3910,8 +3911,9 @@ Format your response as JSON with this exact structure:
     function findNextAvailableDate() {
         const today = new Date();
         let checkDate = new Date(today);
+        checkDate.setDate(checkDate.getDate() + 1); // Start from tomorrow
 
-        // Start checking from today
+        // Start checking from tomorrow (never schedule for today or past dates)
         while (true) {
             const dayOfWeek = checkDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
 
@@ -4002,6 +4004,16 @@ Format your response as JSON with this exact structure:
                 // Skip Sunday if that's where we land
                 if (scheduledDate.getDay() === 0) {
                     scheduledDate.setDate(scheduledDate.getDate() + 1);
+                }
+
+                // Ensure we don't schedule for today or past dates
+                const today = new Date();
+                today.setHours(0, 0, 0, 0); // Reset time for date comparison
+                scheduledDate.setHours(0, 0, 0, 0);
+
+                if (scheduledDate <= today) {
+                    alert(`Cannot schedule Shorts for "${item.topic}" on ${scheduledDate.toDateString()} as it's today or in the past. The Long video needs to be rescheduled to a future date first.`);
+                    return;
                 }
 
                 // Check if this date is already taken
