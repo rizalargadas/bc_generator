@@ -3963,13 +3963,68 @@ Format your response as JSON with this exact structure:
         }
 
         const item = processingData[itemIndex];
-
-        // Find next available date based on the item's video type
         const videoType = item.ytType || 'Long'; // Default to Long if not specified
-        const scheduledDate = findNextAvailableDateForVideoType(videoType);
-        if (!scheduledDate) {
-            alert(`No available ${videoType} slots found in the next 60 days. Please check your calendar.`);
-            return;
+
+        let scheduledDate;
+
+        // Special handling for Shorts - they should be scheduled after their Long counterpart
+        if (videoType === 'Shorts') {
+            // Find the Long counterpart
+            const baseId = item.id.replace('_S', '');
+            const longId = baseId + '_L';
+
+            // Look for Long video in processing data, history data, and scheduled posts
+            const longInProcessing = processingData.find(p => p.id === longId);
+            const longInHistory = historyData.find(h => h.id === longId && h.scheduledDate);
+            const longInScheduled = scheduledPosts.find(s => s.title.includes(item.topic) && s.title.includes('Long'));
+
+            let longScheduledDate = null;
+
+            if (longInHistory && longInHistory.scheduledDate) {
+                longScheduledDate = new Date(longInHistory.scheduledDate);
+                console.log(`Found Long video in history scheduled for: ${longScheduledDate.toDateString()}`);
+            } else if (longInScheduled) {
+                longScheduledDate = new Date(longInScheduled.scheduledTime);
+                console.log(`Found Long video in scheduled posts for: ${longScheduledDate.toDateString()}`);
+            } else if (longInProcessing) {
+                alert(`The Long version of "${item.topic}" must be scheduled first. Please schedule the Long video before scheduling the Shorts version.`);
+                return;
+            } else {
+                alert(`Cannot find the Long version of "${item.topic}". The Long video must be scheduled first before scheduling the Shorts version.`);
+                return;
+            }
+
+            if (longScheduledDate) {
+                // Schedule Shorts for the next day after Long
+                scheduledDate = new Date(longScheduledDate);
+                scheduledDate.setDate(scheduledDate.getDate() + 1);
+
+                // Skip Sunday if that's where we land
+                if (scheduledDate.getDay() === 0) {
+                    scheduledDate.setDate(scheduledDate.getDate() + 1);
+                }
+
+                // Check if this date is already taken
+                const dateStr = scheduledDate.toDateString();
+                const existingPost = scheduledPosts.find(post => {
+                    const postDate = new Date(post.scheduledTime);
+                    return postDate.toDateString() === dateStr;
+                });
+
+                if (existingPost) {
+                    alert(`The day after the Long video (${scheduledDate.toDateString()}) is already taken by: ${existingPost.title}. Please reschedule the Long video or manually choose a date for the Shorts.`);
+                    return;
+                }
+
+                console.log(`Scheduling Shorts "${item.topic}" for ${scheduledDate.toDateString()} (day after Long video)`);
+            }
+        } else {
+            // For Long videos, use the normal scheduling logic
+            scheduledDate = findNextAvailableDateForVideoType(videoType);
+            if (!scheduledDate) {
+                alert(`No available ${videoType} slots found in the next 60 days. Please check your calendar.`);
+                return;
+            }
         }
 
         // Determine time based on day
