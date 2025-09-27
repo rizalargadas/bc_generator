@@ -2031,7 +2031,31 @@ Format your response as JSON with this exact structure:
 
             // Create other cells individually to avoid innerHTML overwriting
             const idTd = document.createElement('td');
-            idTd.innerHTML = `<span class="processing-id">${item.id}</span>`;
+            const idDiv = document.createElement('div');
+            idDiv.className = 'processing-id editable';
+            idDiv.contentEditable = true;
+            idDiv.textContent = item.id;
+
+            // Add blur event to save changes
+            idDiv.addEventListener('blur', function() {
+                const newValue = this.textContent.trim();
+                if (newValue && newValue !== processingData[index].id) {
+                    processingData[index].id = newValue;
+                    // Save to localStorage
+                    saveToLocalStorage();
+                    console.log(`Updated processing ID for row ${index} to: ${newValue}`);
+                }
+            });
+
+            // Add keydown event to handle Enter key
+            idDiv.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.blur();
+                }
+            });
+
+            idTd.appendChild(idDiv);
             tr.appendChild(idTd);
 
             const topicTd = document.createElement('td');
@@ -2355,10 +2379,31 @@ Format your response as JSON with this exact structure:
 
             // Add ID column first
             const idTd = document.createElement('td');
-            const idSpan = document.createElement('span');
-            idSpan.className = 'topic-id';
-            idSpan.textContent = row._topicId || 'N/A';
-            idTd.appendChild(idSpan);
+            const idDiv = document.createElement('div');
+            idDiv.className = 'topic-id editable';
+            idDiv.contentEditable = true;
+            idDiv.textContent = row._topicId || 'N/A';
+
+            // Add blur event to save changes
+            idDiv.addEventListener('blur', function() {
+                const newValue = this.textContent.trim();
+                if (newValue && newValue !== csvData[index]._topicId) {
+                    csvData[index]._topicId = newValue;
+                    // Save to localStorage
+                    saveToLocalStorage();
+                    console.log(`Updated topic ID for row ${index} to: ${newValue}`);
+                }
+            });
+
+            // Add keydown event to handle Enter key
+            idDiv.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.blur();
+                }
+            });
+
+            idTd.appendChild(idDiv);
             tr.appendChild(idTd);
 
             // Add required columns plus YT Type
@@ -4073,7 +4118,31 @@ Format your response as JSON with this exact structure:
 
             // ID
             const idTd = document.createElement('td');
-            idTd.innerHTML = `<span class="processing-id">${item.id}</span>`;
+            const idDiv = document.createElement('div');
+            idDiv.className = 'processing-id editable';
+            idDiv.contentEditable = true;
+            idDiv.textContent = item.id;
+
+            // Add blur event to save changes
+            idDiv.addEventListener('blur', function() {
+                const newValue = this.textContent.trim();
+                if (newValue && newValue !== historyData[index].id) {
+                    historyData[index].id = newValue;
+                    // Save to localStorage
+                    saveHistoryData();
+                    console.log(`Updated history ID for row ${index} to: ${newValue}`);
+                }
+            });
+
+            // Add keydown event to handle Enter key
+            idDiv.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.blur();
+                }
+            });
+
+            idTd.appendChild(idDiv);
             tr.appendChild(idTd);
 
             // Topic
