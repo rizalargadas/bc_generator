@@ -79,6 +79,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectAllHistoryBtn = document.getElementById('select-all-history-btn');
     const deselectAllHistoryBtn = document.getElementById('deselect-all-history-btn');
     const deleteHistoryBtn = document.getElementById('delete-history-btn');
+    const exportTopicsBtn = document.getElementById('export-topics-btn');
     const clearHistoryBtn = document.getElementById('clear-history-btn');
     const selectAllHistoryCheckbox = document.getElementById('select-all-history-checkbox');
     const noHistoryData = document.getElementById('no-history-data');
@@ -4536,6 +4537,12 @@ Format your response as JSON with this exact structure:
         });
     }
 
+    if (exportTopicsBtn) {
+        exportTopicsBtn.addEventListener('click', function() {
+            exportTopicsToCSV();
+        });
+    }
+
     if (clearHistoryBtn) {
         clearHistoryBtn.addEventListener('click', function() {
             if (confirm('Are you sure you want to clear all history? This action cannot be undone.')) {
@@ -4546,6 +4553,60 @@ Format your response as JSON with this exact structure:
                 saveHistoryData();
             }
         });
+    }
+
+    // Export topics to CSV function
+    function exportTopicsToCSV() {
+        if (historyData.length === 0) {
+            alert('No history data to export.');
+            return;
+        }
+
+        // Extract unique topics from history data
+        const topics = new Set();
+
+        historyData.forEach(item => {
+            if (item.topic && item.topic.trim()) {
+                topics.add(item.topic.trim());
+            }
+        });
+
+        if (topics.size === 0) {
+            alert('No topics found in history data.');
+            return;
+        }
+
+        // Convert to array and sort
+        const uniqueTopics = Array.from(topics).sort();
+
+        // Create CSV content
+        let csvContent = 'Topic\n';
+        uniqueTopics.forEach(topic => {
+            // Escape quotes and wrap in quotes if contains comma
+            const escapedTopic = topic.replace(/"/g, '""');
+            const quotedTopic = topic.includes(',') || topic.includes('"') || topic.includes('\n')
+                ? `"${escapedTopic}"`
+                : escapedTopic;
+            csvContent += quotedTopic + '\n';
+        });
+
+        // Create download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+
+        if (navigator.msSaveBlob) { // IE 10+
+            navigator.msSaveBlob(blob, 'history-topics.csv');
+        } else {
+            link.href = URL.createObjectURL(blob);
+            link.download = 'history-topics.csv';
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        console.log(`📊 Exported ${uniqueTopics.length} unique topics from ${historyData.length} history items`);
+        alert(`Successfully exported ${uniqueTopics.length} unique topics to CSV file.`);
     }
 
     // Load history data on page load
