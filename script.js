@@ -128,6 +128,18 @@ document.addEventListener('DOMContentLoaded', function() {
             .replace(/[\u2122]/g, 'TM')        // Trademark
             .replace(/[\u00A9]/g, '(c)')       // Copyright
             .replace(/[\u00AE]/g, '(R)')       // Registered
+            // Remove emoji ranges and other problematic Unicode
+            .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoticons
+            .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // Misc Symbols
+            .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transport
+            .replace(/[\u{1F700}-\u{1F77F}]/gu, '') // Alchemical Symbols
+            .replace(/[\u{1F780}-\u{1F7FF}]/gu, '') // Geometric Shapes Extended
+            .replace(/[\u{1F800}-\u{1F8FF}]/gu, '') // Supplemental Arrows-C
+            .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // Supplemental Symbols and Pictographs
+            .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '') // Chess Symbols
+            .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '') // Symbols and Pictographs Extended-A
+            .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Misc symbols
+            .replace(/[\u{2700}-\u{27BF}]/gu, '')   // Dingbats
             .replace(/[^\x00-\x7F]/g, '')      // Remove any remaining non-ASCII characters
             .trim();
     }
@@ -221,7 +233,7 @@ CONVERSION REQUIREMENTS:
 - YouTube Title: Create a compelling, clickbait-style title (max 100 chars) that hooks viewers instantly
 - YouTube Description: Write a brief, engaging description (2-3 sentences) with hashtags #Shorts #BlackChapter - DO NOT include timestamps
 - YouTube Tags: Generate 10-15 relevant tags separated by commas, including "shorts", "black chapter", topic keywords
-- TikTok/IG Caption: Create a punchy caption with trending hashtags, emojis, and a call-to-action
+- TikTok/IG Caption: Create a punchy caption with trending hashtags and a call-to-action (NO EMOJIS - plain text only)
 
 Return ONLY a JSON object with this EXACT structure:
 {
@@ -230,7 +242,7 @@ Return ONLY a JSON object with this EXACT structure:
     "youtube_title": "Your compelling title here",
     "youtube_description": "Your description with #hashtags",
     "youtube_tags": "tag1, tag2, tag3, shorts, black chapter",
-    "social_caption": "Your TikTok/IG caption with emojis and #hashtags"
+    "social_caption": "Your TikTok/IG caption with #hashtags (NO EMOJIS)"
   }
 }`;
 
@@ -372,7 +384,7 @@ For ${isShort ? 'YouTube Shorts' : 'Long-form YouTube video'}:
 - YouTube Tags: Exactly 30 relevant, comma-separated tags for SEO
 
 ${isShort ? `For TikTok/Instagram:
-- Social Caption: An engaging caption for TikTok/IG including relevant hashtags like #tiktok #instagram #shorts #mystery #truecrime etc (max 150 characters for optimal engagement)` : ''}
+- Social Caption: An engaging caption for TikTok/IG including relevant hashtags like #tiktok #instagram #shorts #mystery #truecrime etc (max 150 characters, NO EMOJIS - plain text only)` : ''}
 
 For YouTube Thumbnail (CRITICAL - Dark History CTR Strategy):
 You are a dark-history YouTube thumbnail strategist, expert in crafting scroll-stopping visuals and text for maximum CTR (click-through rate).
@@ -395,7 +407,7 @@ Format your response as JSON with this exact structure:
     "youtube_title": "Engaging YouTube title",
     "youtube_description": "Detailed YouTube description",
     "youtube_tags": "tag1, tag2, tag3... (30 tags total)"${isShort ? `,
-    "social_caption": "TikTok/IG caption with hashtags"` : ''}
+    "social_caption": "TikTok/IG caption with hashtags (NO EMOJIS)"` : ''}
   },
   "thumbnail": {
     "image_prompt": "A vivid, cinematic AI image prompt for Leonardo.ai showing [describe the most striking visual from the story with dramatic mood, lighting, emotion, and setting - no text on image]",
