@@ -3454,7 +3454,7 @@ Format your response as JSON with this exact structure:
                             console.log(`✅ ${item.topic}: Shorts images copied from Long (${status.sceneImageCount} images)`);
 
                             // Auto-trigger voice generation if images are complete but voice is not
-                            if (status.audioCount === 0 || (item.totalScenes && status.audioCount < item.totalScenes)) {
+                            if (status.audioCount === 0) {
                                 if (!itemsToGenerateVoice.includes(item)) {
                                     itemsToGenerateVoice.push(item);
                                     console.log(`🎯 ${item.topic}: Marked for auto voice generation (images complete, voice missing)`);
@@ -3481,7 +3481,7 @@ Format your response as JSON with this exact structure:
                                     console.log(`✅ ${item.topic}: All ${status.sceneImageCount} scene images complete (${status.imageCount} total files including brand images)`);
 
                                     // Auto-trigger voice generation if images are complete but voice is not
-                                    if (status.audioCount === 0 || (item.totalScenes && status.audioCount < item.totalScenes)) {
+                                    if (status.audioCount === 0) {
                                         if (!itemsToGenerateVoice.includes(item)) {
                                             itemsToGenerateVoice.push(item);
                                             console.log(`🎯 ${item.topic}: Marked for auto voice generation (images complete, voice missing)`);
