@@ -3401,8 +3401,23 @@ Format your response as JSON with this exact structure:
 
                         // If script just became done and images are still waiting, mark for auto-generation
                         if (wasScriptWaiting && item.image === 'waiting...' && status.imageCount === 0) {
-                            itemsToGenerateImages.push(item);
-                            console.log(`Marked ${item.topic} for auto image generation`);
+                            if (item.ytType === 'Shorts') {
+                                // For Shorts, check if Long counterpart has images ready before marking for copying
+                                const baseId = item.id.replace('_S', '');
+                                const longId = baseId + '_L';
+                                const longItem = processingData.find(longItem => longItem.id === longId);
+
+                                if (longItem && longItem.image === 'Done') {
+                                    itemsToGenerateImages.push(item);
+                                    console.log(`🎯 ${item.topic}: Shorts script done, Long images ready - marked for image copying`);
+                                } else {
+                                    console.log(`📝 ${item.topic}: Shorts script done, waiting for Long images to complete`);
+                                }
+                            } else {
+                                // For Long videos, mark for normal image generation
+                                itemsToGenerateImages.push(item);
+                                console.log(`🎯 ${item.topic}: Long script done - marked for auto image generation`);
+                            }
                         }
                     }
 
