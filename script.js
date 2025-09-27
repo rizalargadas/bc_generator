@@ -219,7 +219,7 @@ CONVERSION REQUIREMENTS:
 
 2. GENERATE METADATA:
 - YouTube Title: Create a compelling, clickbait-style title (max 100 chars) that hooks viewers instantly
-- YouTube Description: Write a brief, engaging description (2-3 sentences) with hashtags #Shorts #BlackChapter
+- YouTube Description: Write a brief, engaging description (2-3 sentences) with hashtags #Shorts #BlackChapter - DO NOT include timestamps
 - YouTube Tags: Generate 10-15 relevant tags separated by commas, including "shorts", "black chapter", topic keywords
 - TikTok/IG Caption: Create a punchy caption with trending hashtags, emojis, and a call-to-action
 
@@ -368,7 +368,7 @@ Additionally, generate metadata for YouTube and social media, plus thumbnail pro
 
 For ${isShort ? 'YouTube Shorts' : 'Long-form YouTube video'}:
 - YouTube Title: An engaging, click-worthy title (max 100 characters)
-- YouTube Description: A compelling description with key points, timestamps placeholder, and call-to-action (200-500 words)
+- YouTube Description: A compelling description with key points and call-to-action (200-500 words) - DO NOT include timestamps
 - YouTube Tags: Exactly 30 relevant, comma-separated tags for SEO
 
 ${isShort ? `For TikTok/Instagram:
