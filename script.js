@@ -1495,9 +1495,13 @@ Format your response as JSON with this exact structure:
                     }
                 }
 
-                // Automatically start image generation
-                console.log(`Auto-starting image generation for ${processingItem.topic}`);
-                await generateImages(processingItem);
+                // Automatically start image generation (skip for Shorts - they wait for Long images)
+                if (processingItem.ytType !== 'Shorts') {
+                    console.log(`Auto-starting image generation for ${processingItem.topic}`);
+                    await generateImages(processingItem);
+                } else {
+                    console.log(`Script generation complete for Shorts ${processingItem.topic} - image copying will happen when Long images are ready`);
+                }
 
                 // Voice overs will be automatically generated after images complete
 
