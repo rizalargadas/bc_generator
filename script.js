@@ -198,12 +198,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const prompt = `You are an expert YouTube Shorts adapter specializing in converting long-form content into engaging, fast-paced short videos.
 
-Convert this long-form script into a YouTube Shorts version while maintaining the same scene structure and key narrative elements.
+Convert this long-form script into a YouTube Shorts version with metadata optimized for viral reach.
 
 ORIGINAL LONG SCRIPT:
 ${longScriptData}
 
+TOPIC: ${topic}
+ADDITIONAL INFO: ${info || 'N/A'}
+
 CONVERSION REQUIREMENTS:
+1. SCRIPT CONVERSION:
 - Keep the EXACT SAME number of scenes as the original
 - Maintain the same scene structure and image descriptions
 - Condense the narration to be punchy, fast-paced, and hook-driven
@@ -213,10 +217,22 @@ CONVERSION REQUIREMENTS:
 - Maintain the dark, mysterious tone but make it more urgent
 - Keep all scene numbers and image descriptions identical
 
-Return the converted script in the exact same CSV format:
-Scene,Narration,Image Description
+2. GENERATE METADATA:
+- YouTube Title: Create a compelling, clickbait-style title (max 100 chars) that hooks viewers instantly
+- YouTube Description: Write a brief, engaging description (2-3 sentences) with hashtags #Shorts #BlackChapter
+- YouTube Tags: Generate 10-15 relevant tags separated by commas, including "shorts", "black chapter", topic keywords
+- TikTok/IG Caption: Create a punchy caption with trending hashtags, emojis, and a call-to-action
 
-The scenes should match the original scene numbers but with shortened, more dynamic narration suitable for Shorts.`;
+Return ONLY a JSON object with this EXACT structure:
+{
+  "csv_content": "Scene,Narration,Image Description\\n1,narration text,image description\\n2,narration text,image description",
+  "metadata": {
+    "youtube_title": "Your compelling title here",
+    "youtube_description": "Your description with #hashtags",
+    "youtube_tags": "tag1, tag2, tag3, shorts, black chapter",
+    "social_caption": "Your TikTok/IG caption with emojis and #hashtags"
+  }
+}`;
 
         try {
             console.log('🤖 Calling OpenAI API for Shorts conversion...');
@@ -264,11 +280,34 @@ The scenes should match the original scene numbers but with shortened, more dyna
                 throw new Error('Invalid response from OpenAI API');
             }
 
-            const shortsScript = data.choices[0].message.content.trim();
-            console.log(`✅ Shorts script conversion completed, result length: ${shortsScript.length} characters`);
-            console.log(`📋 First 200 chars: ${shortsScript.substring(0, 200)}...`);
+            const shortsScriptContent = data.choices[0].message.content.trim();
+            console.log(`✅ Shorts script conversion completed, result length: ${shortsScriptContent.length} characters`);
 
-            return shortsScript;
+            // Try to parse as JSON
+            try {
+                const parsedResponse = JSON.parse(shortsScriptContent);
+
+                if (!parsedResponse.csv_content || !parsedResponse.metadata) {
+                    throw new Error('Response missing required fields (csv_content or metadata)');
+                }
+
+                console.log(`✅ Parsed response with metadata:`);
+                console.log(`   - Title: ${parsedResponse.metadata.youtube_title}`);
+                console.log(`   - Tags: ${parsedResponse.metadata.youtube_tags}`);
+
+                return parsedResponse;
+            } catch (parseError) {
+                console.error('Failed to parse JSON response:', parseError);
+                // Fall back to treating it as plain CSV for backward compatibility
+                if (shortsScriptContent.includes('Scene') && shortsScriptContent.includes(',')) {
+                    console.log('Falling back to plain CSV format (no metadata)');
+                    return {
+                        csv_content: shortsScriptContent,
+                        metadata: null
+                    };
+                }
+                throw new Error('Response is neither valid JSON nor CSV format');
+            }
 
         } catch (error) {
             console.error('Error converting to Shorts:', error);
@@ -1316,9 +1355,24 @@ Format your response as JSON with this exact structure:
                 console.log(`🔄 Starting OpenAI conversion to Shorts...`);
 
                 // Convert Long script to Shorts
-                const shortsScriptText = await convertLongToShorts(csvResult.content, processingItem.topic, processingItem.fullData.Info);
+                const shortsResponse = await convertLongToShorts(csvResult.content, processingItem.topic, processingItem.fullData.Info);
 
-                console.log(`✅ Shorts script conversion completed, length: ${shortsScriptText.length} characters`);
+                console.log(`✅ Shorts script conversion completed`);
+
+                // Handle the response whether it's the new JSON format or legacy CSV
+                let shortsScriptText;
+                let metadata = null;
+
+                if (shortsResponse.csv_content) {
+                    // New JSON format with metadata
+                    shortsScriptText = shortsResponse.csv_content;
+                    metadata = shortsResponse.metadata;
+                    console.log(`📊 Received metadata for Shorts video`);
+                } else {
+                    // Legacy format - plain CSV string
+                    shortsScriptText = shortsResponse;
+                    console.log(`📋 Using legacy CSV format (no metadata)`);
+                }
 
                 // Parse the converted script to get scene structure
                 const parsedScenes = parseCSVContent(shortsScriptText);
@@ -1341,7 +1395,7 @@ Format your response as JSON with this exact structure:
                 });
 
                 console.log(`Converted ${scenes.length} scenes for Shorts script`);
-                scriptData = { scenes };
+                scriptData = { scenes, metadata };
 
             } else {
                 // For Long videos, generate new script
