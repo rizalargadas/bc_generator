@@ -68,12 +68,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const testVoiceStatus = document.getElementById('test-voice-status');
     const testAudio = document.getElementById('test-audio');
     const leonardoStatus = document.getElementById('leonardo-status');
-    const wordCountRadio = document.getElementById('word-count-radio');
-    const characterCountRadio = document.getElementById('character-count-radio');
-    const wordCountSection = document.getElementById('word-count-section');
-    const characterCountSection = document.getElementById('character-count-section');
-    const scriptWordCountInput = document.getElementById('script-word-count');
-    const scriptCharacterCountInput = document.getElementById('script-character-count');
+    const wordsPerSceneInput = document.getElementById('words-per-scene');
     const scriptSceneCountInput = document.getElementById('script-scene-count');
     const saveScriptConfigBtn = document.getElementById('save-script-config');
     const currentScriptConfig = document.getElementById('current-script-config');
@@ -129,9 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let leonardoAlchemyEnabled = false; // Default to disabled to save credits
 
     // Script Configuration
-    let scriptLengthType = 'words'; // 'words' or 'characters'
-    let scriptWordCount = 6000; // Default word count
-    let scriptCharacterCount = 30000; // Default character count
+    let wordsPerScene = 600; // Default words per scene
     let scriptSceneCount = 10; // Default number of scenes
 
     // Calendar state
@@ -377,49 +370,42 @@ Return ONLY a JSON object with this EXACT structure:
         }
 
         const isShort = ytType === 'Shorts';
+        const sceneCount = isShort ? 4 : scriptSceneCount;  // Shorts: 4 scenes, Long: configurable
+        const wordsPerSceneTarget = isShort ? 100 : wordsPerScene;  // Shorts: ~100 words/scene, Long: configurable
+        const targetLength = wordsPerSceneTarget * sceneCount;  // Total words = words per scene × scene count
 
-        // Determine target length based on configuration
-        let targetLength, lengthType, lengthUnit;
-        if (isShort) {
-            // Shorts always use 400 words and 4 scenes
-            targetLength = 400;
-            lengthType = 'words';
-            lengthUnit = 'words';
-        } else {
-            // Long videos use configured length type
-            if (scriptLengthType === 'characters') {
-                targetLength = scriptCharacterCount;
-                lengthType = 'characters';
-                lengthUnit = 'characters';
-            } else {
-                targetLength = scriptWordCount;
-                lengthType = 'words';
-                lengthUnit = 'words';
-            }
-        }
-
-        const sceneCount = isShort ? 4 : scriptSceneCount;  // Use configurable scene count for Long videos
-
-        console.log(`📝 Script generation for ${ytType}: Target ${lengthType} = ${targetLength}, scenes = ${sceneCount}`);
+        console.log(`📝 Script generation for ${ytType}: ${wordsPerSceneTarget} words/scene × ${sceneCount} scenes = ${targetLength} total words`);
 
         const prompt = `You are an award-winning narrative architect and YouTube strategy expert specializing in faceless, AI-narrated, content (True Crime, Dark History, Mysteries, Creepy Happenings) that maximizes audience retention and growth. You craft meticulously-researched, vividly-told scripts that create an eerie yet factual journey into humanity's darkest chapters.
 
 Write an immersive, narrative-driven YouTube ${isShort ? 'Shorts' : 'Long-form'} script on:
+
+IMPORTANT: Your response MUST be valid JSON.
 📌 TOPIC: ${topic}
 
 Short Info About the Topic: ${info}
 
-🎯 CRITICAL ${lengthType.toUpperCase()} COUNT REQUIREMENT:
-- The TOTAL combined script content across ALL scenes must be EXACTLY ${targetLength} ${lengthUnit} (±${lengthType === 'words' ? '50' : '500'} ${lengthUnit} tolerance)
-- Each scene should contain approximately ${Math.floor(targetLength / sceneCount)} ${lengthUnit} of actual narration script
-- Only count ${lengthUnit} in the "script" field - titles and image prompts don't count toward ${lengthUnit} limit
+🎯 CRITICAL WORD COUNT REQUIREMENT (PER SCENE):
+**MOST IMPORTANT RULE: Each scene's "script" field MUST be EXACTLY ${wordsPerSceneTarget} words (±5 words MAXIMUM)**
+
+- Create ${sceneCount} scenes total
+- Target total: ${targetLength} words (${wordsPerSceneTarget} words × ${sceneCount} scenes)
+- Only count words in the "script" field - titles and image prompts don't count
 - Write FULL, COMPLETE scripts - not summaries or outlines
+
+**WORD COUNTING PROCESS (MANDATORY):**
+1. Write the scene script
+2. Count the actual words (split by spaces)
+3. If under ${wordsPerSceneTarget - 5} words: Add more detail, atmosphere, context
+4. If over ${wordsPerSceneTarget + 5} words: Remove filler, tighten prose
+5. Verify final count is ${wordsPerSceneTarget} ±5 words
+6. Move to next scene
 
 Create ${sceneCount} distinct scenes with DETAILED, COMPLETE narration. ${isShort ? 'For Shorts, focus on immediate hook and rapid pacing.' : 'Use suspenseful but calm, authoritative language to build curiosity and maintain an unsettling yet factual tone.'}
 
 The script should conclude with a haunting/hooky outro line/scene. Stay strictly within verified facts and note if the topic warrants a multi-part series. Your goal: craft an unforgettable, cinematic narrative experience that keeps viewers watching to the end — and eager for the next dark chapter.
 
-⚠️ MANDATORY ${lengthType.toUpperCase()} COUNT CHECK: Before submitting your response, manually count the ${lengthUnit} in ALL "script" fields combined. The total must be ${targetLength} ${lengthUnit} (±${lengthType === 'words' ? '50' : '500'}). If you're short, add more descriptive detail, atmosphere, background information, and narrative depth. If you're over, trim unnecessary words while maintaining impact and flow.
+⚠️ FINAL QUALITY CHECK: After generating all scenes, go back and COUNT each scene's words. Adjust any scene that's outside the ${wordsPerSceneTarget} ±5 word range.
 
 For each scene's image prompt, ensure they are:
 - Written in clear, descriptive English
@@ -433,7 +419,15 @@ For each scene's image prompt, ensure they are:
 
 IMPORTANT: Use only plain ASCII text. Avoid special characters, smart quotes, em-dashes, or any Unicode characters. Use simple punctuation only (periods, commas, apostrophes, hyphens, quotes).
 
-🎯 FINAL REMINDER: The combined ${lengthType} count of ALL "script" fields must total ${targetLength} ${lengthUnit} (±${lengthType === 'words' ? '50' : '500'}). Count them before submitting!
+🎯 FINAL REMINDER BEFORE SUBMITTING:
+GO BACK AND COUNT THE WORDS IN EACH SCENE'S "script" FIELD!
+- Scene 1: Should be ${wordsPerSceneTarget} ±5 words
+- Scene 2: Should be ${wordsPerSceneTarget} ±5 words
+- Continue for all ${sceneCount} scenes
+- Adjust any scene outside this range NOW before submitting
+- Total should be approximately ${targetLength} words
+
+This is the LAST checkpoint - verify word counts are accurate!
 
 Additionally, generate metadata for YouTube and social media, plus thumbnail prompts:
 
@@ -473,7 +467,7 @@ Format your response as JSON with this exact structure:
     {
       "scene_number": 1,
       "title": "Scene Title",
-      "script": "The COMPLETE full script narration for this scene - approximately ${Math.floor(targetLength / sceneCount)} ${lengthUnit}",
+      "script": "The COMPLETE full script narration for this scene - EXACTLY ${wordsPerSceneTarget} words (±10)",
       "image_prompt": "Detailed image generation prompt for this scene"
     }
   ],
@@ -498,20 +492,27 @@ Format your response as JSON with this exact structure:
                     'Authorization': `Bearer ${openaiApiKey}`
                 },
                 body: JSON.stringify({
-                    model: 'gpt-4',
+                    model: 'gpt-4o',  // GPT-4o supports JSON mode and is better at precise instructions
+                    response_format: { type: "json_object" },  // Force JSON output for better accuracy
                     messages: [
+                        {
+                            role: 'system',
+                            content: `You are a precise script writer. You MUST count words carefully and generate EXACTLY ${wordsPerSceneTarget} words per scene. After writing each scene, COUNT the words and adjust until it's exactly ${wordsPerSceneTarget} words (±5 words maximum). This is CRITICAL - word count accuracy is your top priority.`
+                        },
                         {
                             role: 'user',
                             content: prompt
                         }
                     ],
-                    max_tokens: 4000,
+                    max_tokens: 8000,  // Increased for longer scripts with precise word counts
                     temperature: 0.7
                 })
             });
 
             if (!response.ok) {
-                throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+                const errorData = await response.json().catch(() => ({}));
+                console.error('OpenAI API Error Details:', errorData);
+                throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
             }
 
             const data = await response.json();
@@ -529,41 +530,37 @@ Format your response as JSON with this exact structure:
                         image_prompt: cleanText(scene.image_prompt)
                     }));
 
-                    // Verify length (words or characters)
-                    if (lengthType === 'characters') {
-                        const totalChars = parsedData.scenes.reduce((total, scene) => {
-                            const charCount = scene.script ? scene.script.length : 0;
-                            return total + charCount;
-                        }, 0);
+                    // Verify word count per scene
+                    console.log(`📊 Script word count verification (per scene):`);
+                    console.log(`- Target: ${wordsPerSceneTarget} words/scene × ${sceneCount} scenes = ${targetLength} total words`);
 
-                        console.log(`📊 Script character count verification:`);
-                        console.log(`- Target: ${targetLength} characters`);
-                        console.log(`- Actual: ${totalChars} characters`);
-                        console.log(`- Difference: ${totalChars - targetLength} characters (${((totalChars / targetLength) * 100).toFixed(1)}% of target)`);
+                    let totalWords = 0;
+                    let scenesOutOfRange = 0;
+                    parsedData.scenes.forEach((scene, index) => {
+                        const wordCount = scene.script ? scene.script.split(/\s+/).filter(word => word.length > 0).length : 0;
+                        totalWords += wordCount;
+                        const diff = wordCount - wordsPerSceneTarget;
+                        const withinRange = Math.abs(diff) <= 5;
+                        if (!withinRange) scenesOutOfRange++;
+                        const status = withinRange ? '✅' : (Math.abs(diff) <= 15 ? '⚠️' : '❌');
+                        console.log(`  ${status} Scene ${index + 1}: ${wordCount} words (target: ${wordsPerSceneTarget}, diff: ${diff > 0 ? '+' : ''}${diff})`);
+                    });
 
-                        const tolerance = Math.max(500, targetLength * 0.1); // 10% tolerance or 500 chars minimum
-                        if (Math.abs(totalChars - targetLength) > tolerance) {
-                            console.warn(`⚠️ Character count significantly off target! Expected ~${targetLength}, got ${totalChars}`);
-                        } else {
-                            console.log(`✅ Character count within acceptable range`);
-                        }
+                    console.log(`- Total: ${totalWords} words`);
+                    console.log(`- Difference from target: ${totalWords - targetLength} words (${((totalWords / targetLength) * 100).toFixed(1)}% of target)`);
+                    console.log(`- Scenes out of ±5 word range: ${scenesOutOfRange}/${sceneCount}`);
+
+                    const tolerance = sceneCount * 5; // ±5 words per scene tolerance
+                    if (Math.abs(totalWords - targetLength) > tolerance) {
+                        console.warn(`⚠️ Total word count off target! Expected ~${targetLength}, got ${totalWords}`);
                     } else {
-                        const totalWords = parsedData.scenes.reduce((total, scene) => {
-                            const wordCount = scene.script ? scene.script.split(/\s+/).filter(word => word.length > 0).length : 0;
-                            return total + wordCount;
-                        }, 0);
+                        console.log(`✅ Total word count within acceptable range`);
+                    }
 
-                        console.log(`📊 Script word count verification:`);
-                        console.log(`- Target: ${targetLength} words`);
-                        console.log(`- Actual: ${totalWords} words`);
-                        console.log(`- Difference: ${totalWords - targetLength} words (${((totalWords / targetLength) * 100).toFixed(1)}% of target)`);
-
-                        const tolerance = Math.max(50, targetLength * 0.1); // 10% tolerance or 50 words minimum
-                        if (Math.abs(totalWords - targetLength) > tolerance) {
-                            console.warn(`⚠️ Word count significantly off target! Expected ~${targetLength}, got ${totalWords}`);
-                        } else {
-                            console.log(`✅ Word count within acceptable range`);
-                        }
+                    if (scenesOutOfRange > 0) {
+                        console.warn(`⚠️ ${scenesOutOfRange} scene(s) outside ±5 word target range`);
+                    } else {
+                        console.log(`✅ All scenes meet word count requirements!`);
                     }
                 }
 
@@ -1875,15 +1872,13 @@ Format your response as JSON with this exact structure:
             localStorage.setItem('bc_generator_leonardo_model', selectedLeonardoModel);
             localStorage.setItem('bc_generator_leonardo_alchemy', leonardoAlchemyEnabled);
             localStorage.setItem('bc_generator_paused_items', JSON.stringify(Array.from(pausedItems)));
-            localStorage.setItem('bc_generator_script_length_type', scriptLengthType);
-            localStorage.setItem('bc_generator_script_word_count', scriptWordCount);
-            localStorage.setItem('bc_generator_script_character_count', scriptCharacterCount);
+            localStorage.setItem('bc_generator_words_per_scene', wordsPerScene);
             localStorage.setItem('bc_generator_script_scene_count', scriptSceneCount);
             localStorage.setItem('bc_generator_weekday_time', weekdayScheduleTime);
             localStorage.setItem('bc_generator_weekend_time', weekendScheduleTime);
             localStorage.setItem('bc_generator_timestamp', new Date().toISOString());
             console.log('✅ Saved to localStorage successfully');
-            console.log('Script config saved:', { scriptLengthType, scriptWordCount, scriptCharacterCount, scriptSceneCount });
+            console.log('Script config saved:', { wordsPerScene, scriptSceneCount });
         } catch (e) {
             console.error('❌ Could not save to localStorage:', e);
         }
@@ -2000,26 +1995,10 @@ Format your response as JSON with this exact structure:
                 pausedItems = new Set(JSON.parse(savedPausedItems));
             }
 
-            const savedScriptLengthType = localStorage.getItem('bc_generator_script_length_type');
-            if (savedScriptLengthType) {
-                scriptLengthType = savedScriptLengthType;
-                if (scriptLengthType === 'words') {
-                    wordCountRadio.checked = true;
-                } else {
-                    characterCountRadio.checked = true;
-                }
-            }
-
-            const savedScriptWordCount = localStorage.getItem('bc_generator_script_word_count');
-            if (savedScriptWordCount) {
-                scriptWordCount = parseInt(savedScriptWordCount);
-                scriptWordCountInput.value = scriptWordCount;
-            }
-
-            const savedScriptCharacterCount = localStorage.getItem('bc_generator_script_character_count');
-            if (savedScriptCharacterCount) {
-                scriptCharacterCount = parseInt(savedScriptCharacterCount);
-                scriptCharacterCountInput.value = scriptCharacterCount;
+            const savedWordsPerScene = localStorage.getItem('bc_generator_words_per_scene');
+            if (savedWordsPerScene) {
+                wordsPerScene = parseInt(savedWordsPerScene);
+                wordsPerSceneInput.value = wordsPerScene;
             }
 
             const savedScriptSceneCount = localStorage.getItem('bc_generator_script_scene_count');
@@ -2028,10 +2007,10 @@ Format your response as JSON with this exact structure:
                 scriptSceneCountInput.value = scriptSceneCount;
             }
 
-            updateScriptLengthUI();
+            updateCurrentScriptConfig();
 
             console.log('✅ Loaded from localStorage successfully');
-            console.log('Script config loaded:', { scriptLengthType, scriptWordCount, scriptCharacterCount, scriptSceneCount });
+            console.log('Script config loaded:', { wordsPerScene, scriptSceneCount });
 
             // Load scheduling settings
             loadSchedulingSettings();
@@ -3545,61 +3524,24 @@ Format your response as JSON with this exact structure:
         }
     });
 
-    // Script Configuration - Toggle between word count and character count
-    function updateScriptLengthUI() {
-        if (scriptLengthType === 'words') {
-            wordCountSection.style.display = 'block';
-            characterCountSection.style.display = 'none';
-        } else {
-            wordCountSection.style.display = 'none';
-            characterCountSection.style.display = 'block';
-        }
-        updateCurrentScriptConfig();
-    }
-
+    // Script Configuration
     function updateCurrentScriptConfig() {
-        const lengthText = scriptLengthType === 'words'
-            ? `${scriptWordCount} words`
-            : `${scriptCharacterCount} characters`;
-        currentScriptConfig.textContent = `• ${lengthText}, ${scriptSceneCount} scenes`;
+        const totalWords = wordsPerScene * scriptSceneCount;
+        currentScriptConfig.textContent = `• ${wordsPerScene} words per scene, ${scriptSceneCount} scenes (≈${totalWords} words total for Long)`;
     }
-
-    wordCountRadio.addEventListener('change', function() {
-        if (this.checked) {
-            scriptLengthType = 'words';
-            updateScriptLengthUI();
-        }
-    });
-
-    characterCountRadio.addEventListener('change', function() {
-        if (this.checked) {
-            scriptLengthType = 'characters';
-            updateScriptLengthUI();
-        }
-    });
 
     // Script Configuration Management
     saveScriptConfigBtn.addEventListener('click', function() {
         console.log('🔧 Save Configuration button clicked!');
-        let isValid = false;
+        let isValid = true;
         let errorMessage = '';
 
-        if (scriptLengthType === 'words') {
-            const wordCount = parseInt(scriptWordCountInput.value);
-            if (wordCount && wordCount >= 1000 && wordCount <= 20000) {
-                scriptWordCount = wordCount;
-                isValid = true;
-            } else {
-                errorMessage = 'Please enter a valid word count between 1,000 and 20,000';
-            }
+        const wps = parseInt(wordsPerSceneInput.value);
+        if (!wps || wps < 50 || wps > 2000) {
+            isValid = false;
+            errorMessage = 'Please enter a valid words per scene between 50 and 2000';
         } else {
-            const charCount = parseInt(scriptCharacterCountInput.value);
-            if (charCount && charCount >= 5000 && charCount <= 100000) {
-                scriptCharacterCount = charCount;
-                isValid = true;
-            } else {
-                errorMessage = 'Please enter a valid character count between 5,000 and 100,000';
-            }
+            wordsPerScene = wps;
         }
 
         const sceneCount = parseInt(scriptSceneCountInput.value);

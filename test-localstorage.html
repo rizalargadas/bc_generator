@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LocalStorage Test</title>
+</head>
+<body>
+    <h1>LocalStorage Test</h1>
+    <button onclick="saveTest()">Save Test Data</button>
+    <button onclick="loadTest()">Load Test Data</button>
+    <button onclick="checkAll()">Check All BC Generator Keys</button>
+    <div id="output" style="margin-top: 20px; font-family: monospace;"></div>
+
+    <script>
+        function saveTest() {
+            localStorage.setItem('test_key', 'Hello World');
+            localStorage.setItem('bc_generator_test', JSON.stringify({
+                timestamp: new Date().toISOString(),
+                data: 'Test data'
+            }));
+            document.getElementById('output').innerHTML = '✅ Saved test data';
+        }
+
+        function loadTest() {
+            const testKey = localStorage.getItem('test_key');
+            const bcTest = localStorage.getItem('bc_generator_test');
+            document.getElementById('output').innerHTML = `
+                test_key: ${testKey}<br>
+                bc_generator_test: ${bcTest}
+            `;
+        }
+
+        function checkAll() {
+            const keys = Object.keys(localStorage).filter(k => k.startsWith('bc_generator_'));
+            let html = `<strong>Found ${keys.length} BC Generator keys:</strong><br><br>`;
+
+            keys.forEach(key => {
+                const value = localStorage.getItem(key);
+                const preview = value.length > 100 ? value.substring(0, 100) + '...' : value;
+                html += `${key}: ${preview}<br>`;
+            });
+
+            document.getElementById('output').innerHTML = html || 'No keys found';
+        }
+
+        // Auto check on load
+        window.onload = function() {
+            console.log('🔍 LocalStorage Test Page Loaded');
+            checkAll();
+        };
+    </script>
+</body>
+</html>

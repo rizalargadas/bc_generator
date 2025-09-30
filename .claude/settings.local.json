@@ -15,7 +15,8 @@
       "Bash(find:*)",
       "Bash(node:*)",
       "Bash(del remove_columns.js)",
-      "Bash(pip show:*)"
+      "Bash(pip show:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
