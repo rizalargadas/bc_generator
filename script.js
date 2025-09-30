@@ -377,10 +377,30 @@ Return ONLY a JSON object with this EXACT structure:
         }
 
         const isShort = ytType === 'Shorts';
-        const targetWords = isShort ? 400 : scriptWordCount;  // Use configurable word count for Long videos
+
+        // Determine target length based on configuration
+        let targetLength, lengthType, lengthUnit;
+        if (isShort) {
+            // Shorts always use 400 words and 4 scenes
+            targetLength = 400;
+            lengthType = 'words';
+            lengthUnit = 'words';
+        } else {
+            // Long videos use configured length type
+            if (scriptLengthType === 'characters') {
+                targetLength = scriptCharacterCount;
+                lengthType = 'characters';
+                lengthUnit = 'characters';
+            } else {
+                targetLength = scriptWordCount;
+                lengthType = 'words';
+                lengthUnit = 'words';
+            }
+        }
+
         const sceneCount = isShort ? 4 : scriptSceneCount;  // Use configurable scene count for Long videos
 
-        console.log(`📝 Script generation for ${ytType}: Target words = ${targetWords}, scenes = ${sceneCount}`);
+        console.log(`📝 Script generation for ${ytType}: Target ${lengthType} = ${targetLength}, scenes = ${sceneCount}`);
 
         const prompt = `You are an award-winning narrative architect and YouTube strategy expert specializing in faceless, AI-narrated, content (True Crime, Dark History, Mysteries, Creepy Happenings) that maximizes audience retention and growth. You craft meticulously-researched, vividly-told scripts that create an eerie yet factual journey into humanity's darkest chapters.
 
@@ -389,17 +409,17 @@ Write an immersive, narrative-driven YouTube ${isShort ? 'Shorts' : 'Long-form'}
 
 Short Info About the Topic: ${info}
 
-🎯 CRITICAL WORD COUNT REQUIREMENT:
-- The TOTAL combined script content across ALL scenes must be EXACTLY ${targetWords} words (±50 words tolerance)
-- Each scene should contain approximately ${Math.floor(targetWords / sceneCount)} words of actual narration script
-- Only count words in the "script" field - titles and image prompts don't count toward word limit
+🎯 CRITICAL ${lengthType.toUpperCase()} COUNT REQUIREMENT:
+- The TOTAL combined script content across ALL scenes must be EXACTLY ${targetLength} ${lengthUnit} (±${lengthType === 'words' ? '50' : '500'} ${lengthUnit} tolerance)
+- Each scene should contain approximately ${Math.floor(targetLength / sceneCount)} ${lengthUnit} of actual narration script
+- Only count ${lengthUnit} in the "script" field - titles and image prompts don't count toward ${lengthUnit} limit
 - Write FULL, COMPLETE scripts - not summaries or outlines
 
 Create ${sceneCount} distinct scenes with DETAILED, COMPLETE narration. ${isShort ? 'For Shorts, focus on immediate hook and rapid pacing.' : 'Use suspenseful but calm, authoritative language to build curiosity and maintain an unsettling yet factual tone.'}
 
 The script should conclude with a haunting/hooky outro line/scene. Stay strictly within verified facts and note if the topic warrants a multi-part series. Your goal: craft an unforgettable, cinematic narrative experience that keeps viewers watching to the end — and eager for the next dark chapter.
 
-⚠️ MANDATORY WORD COUNT CHECK: Before submitting your response, manually count the words in ALL "script" fields combined. The total must be ${targetWords} words (±50). If you're short, add more descriptive detail, atmosphere, background information, and narrative depth. If you're over, trim unnecessary words while maintaining impact and flow.
+⚠️ MANDATORY ${lengthType.toUpperCase()} COUNT CHECK: Before submitting your response, manually count the ${lengthUnit} in ALL "script" fields combined. The total must be ${targetLength} ${lengthUnit} (±${lengthType === 'words' ? '50' : '500'}). If you're short, add more descriptive detail, atmosphere, background information, and narrative depth. If you're over, trim unnecessary words while maintaining impact and flow.
 
 For each scene's image prompt, ensure they are:
 - Written in clear, descriptive English
@@ -413,7 +433,7 @@ For each scene's image prompt, ensure they are:
 
 IMPORTANT: Use only plain ASCII text. Avoid special characters, smart quotes, em-dashes, or any Unicode characters. Use simple punctuation only (periods, commas, apostrophes, hyphens, quotes).
 
-🎯 FINAL REMINDER: The combined word count of ALL "script" fields must total ${targetWords} words (±50). Count them before submitting!
+🎯 FINAL REMINDER: The combined ${lengthType} count of ALL "script" fields must total ${targetLength} ${lengthUnit} (±${lengthType === 'words' ? '50' : '500'}). Count them before submitting!
 
 Additionally, generate metadata for YouTube and social media, plus thumbnail prompts:
 
@@ -453,7 +473,7 @@ Format your response as JSON with this exact structure:
     {
       "scene_number": 1,
       "title": "Scene Title",
-      "script": "The COMPLETE full script narration for this scene - approximately ${Math.floor(targetWords / sceneCount)} words",
+      "script": "The COMPLETE full script narration for this scene - approximately ${Math.floor(targetLength / sceneCount)} ${lengthUnit}",
       "image_prompt": "Detailed image generation prompt for this scene"
     }
   ],
@@ -509,22 +529,41 @@ Format your response as JSON with this exact structure:
                         image_prompt: cleanText(scene.image_prompt)
                     }));
 
-                    // Verify word count
-                    const totalWords = parsedData.scenes.reduce((total, scene) => {
-                        const wordCount = scene.script ? scene.script.split(/\s+/).filter(word => word.length > 0).length : 0;
-                        return total + wordCount;
-                    }, 0);
+                    // Verify length (words or characters)
+                    if (lengthType === 'characters') {
+                        const totalChars = parsedData.scenes.reduce((total, scene) => {
+                            const charCount = scene.script ? scene.script.length : 0;
+                            return total + charCount;
+                        }, 0);
 
-                    console.log(`📊 Script word count verification:`);
-                    console.log(`- Target: ${targetWords} words`);
-                    console.log(`- Actual: ${totalWords} words`);
-                    console.log(`- Difference: ${totalWords - targetWords} words (${((totalWords / targetWords) * 100).toFixed(1)}% of target)`);
+                        console.log(`📊 Script character count verification:`);
+                        console.log(`- Target: ${targetLength} characters`);
+                        console.log(`- Actual: ${totalChars} characters`);
+                        console.log(`- Difference: ${totalChars - targetLength} characters (${((totalChars / targetLength) * 100).toFixed(1)}% of target)`);
 
-                    const tolerance = Math.max(50, targetWords * 0.1); // 10% tolerance or 50 words minimum
-                    if (Math.abs(totalWords - targetWords) > tolerance) {
-                        console.warn(`⚠️ Word count significantly off target! Expected ~${targetWords}, got ${totalWords}`);
+                        const tolerance = Math.max(500, targetLength * 0.1); // 10% tolerance or 500 chars minimum
+                        if (Math.abs(totalChars - targetLength) > tolerance) {
+                            console.warn(`⚠️ Character count significantly off target! Expected ~${targetLength}, got ${totalChars}`);
+                        } else {
+                            console.log(`✅ Character count within acceptable range`);
+                        }
                     } else {
-                        console.log(`✅ Word count within acceptable range`);
+                        const totalWords = parsedData.scenes.reduce((total, scene) => {
+                            const wordCount = scene.script ? scene.script.split(/\s+/).filter(word => word.length > 0).length : 0;
+                            return total + wordCount;
+                        }, 0);
+
+                        console.log(`📊 Script word count verification:`);
+                        console.log(`- Target: ${targetLength} words`);
+                        console.log(`- Actual: ${totalWords} words`);
+                        console.log(`- Difference: ${totalWords - targetLength} words (${((totalWords / targetLength) * 100).toFixed(1)}% of target)`);
+
+                        const tolerance = Math.max(50, targetLength * 0.1); // 10% tolerance or 50 words minimum
+                        if (Math.abs(totalWords - targetLength) > tolerance) {
+                            console.warn(`⚠️ Word count significantly off target! Expected ~${targetLength}, got ${totalWords}`);
+                        } else {
+                            console.log(`✅ Word count within acceptable range`);
+                        }
                     }
                 }
 
@@ -560,7 +599,7 @@ Format your response as JSON with this exact structure:
 
     function parseTextScript(text) {
         // Fallback parser for non-JSON responses
-        const scenes = [];
+        let scenes = [];
         const lines = text.split('\n');
         let currentScene = null;
         let sceneNumber = 1;
@@ -1728,7 +1767,23 @@ Format your response as JSON with this exact structure:
                     console.log(`Auto-starting image generation for ${processingItem.topic}`);
                     await generateImages(processingItem);
                 } else {
-                    console.log(`Script generation complete for Shorts ${processingItem.topic} - image copying will happen when Long images are ready`);
+                    console.log(`Script generation complete for Shorts ${processingItem.topic} - checking if Long images are ready...`);
+
+                    // Check if Long images are already done, if so, start copying
+                    const baseId = processingItem.id.replace('_S', '');
+                    const longId = baseId + '_L';
+                    const longItem = processingData.find(item => item.id === longId);
+
+                    if (longItem && (longItem.image === 'Done' || longItem.image === 'done')) {
+                        console.log(`✅ Long video images are ready! Auto-starting image copy for Shorts ${processingItem.topic}`);
+                        try {
+                            await generateImages(processingItem);
+                        } catch (error) {
+                            console.error(`Failed to auto-start Shorts image copy:`, error);
+                        }
+                    } else {
+                        console.log(`⏳ Long video images not ready yet (status: ${longItem?.image || 'not found'}). Will copy when Long images complete.`);
+                    }
                 }
 
                 // Voice overs will be automatically generated after images complete
