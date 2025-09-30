@@ -922,7 +922,7 @@ Format your response as JSON with this exact structure:
     }
 
     // Generate thumbnail image using Leonardo.ai or Pollinations AI
-    async function generateThumbnail(processingItem) {
+    async function generateThumbnail(processingItem, isRegeneration = false) {
         // Check if Leonardo is enabled and has API key, otherwise use Pollinations
         const useLeonardo = leonardoEnabled && leonardoApiKey;
 
@@ -934,7 +934,7 @@ Format your response as JSON with this exact structure:
             throw new Error('Output directory not found');
         }
 
-        console.log(`🎨 Using ${useLeonardo ? 'Leonardo.ai' : 'Pollinations AI'} for thumbnail generation`);
+        console.log(`🎨 Using ${useLeonardo ? 'Leonardo.ai' : 'Pollinations AI'} for thumbnail generation${isRegeneration ? ' (REGENERATING with variation)' : ''}`);
 
         // Skip thumbnail generation for Shorts
         if (processingItem.ytType === 'Shorts') {
@@ -980,14 +980,33 @@ Format your response as JSON with this exact structure:
                 return;
             }
 
-            console.log(`📝 Using thumbnail prompt: ${scenes.thumbnailImagePrompt.substring(0, 100)}...`);
+            console.log(`📝 Original thumbnail prompt: ${scenes.thumbnailImagePrompt.substring(0, 100)}...`);
+
+            // Add variation to the prompt if regenerating
+            let thumbnailPrompt = scenes.thumbnailImagePrompt;
+            if (isRegeneration) {
+                const variations = [
+                    ', different angle, alternative perspective',
+                    ', alternative composition, unique viewpoint',
+                    ', different lighting, varied atmosphere',
+                    ', alternative color scheme, different mood',
+                    ', different time of day, varied ambiance',
+                    ', alternative framing, different focus point',
+                    ', varied color palette, different tone',
+                    ', different artistic interpretation, alternative style'
+                ];
+                const randomVariation = variations[Math.floor(Math.random() * variations.length)];
+                thumbnailPrompt = scenes.thumbnailImagePrompt + randomVariation;
+                console.log(`🎲 Adding variation: "${randomVariation}"`);
+                console.log(`📝 Modified prompt: ${thumbnailPrompt.substring(0, 120)}...`);
+            }
 
             let thumbnailUrl = null;
 
             if (useLeonardo) {
                 // Generate thumbnail using Leonardo.ai API
                 const thumbnailRequestBody = {
-                    prompt: scenes.thumbnailImagePrompt,
+                    prompt: thumbnailPrompt,
                     modelId: selectedLeonardoModel,
                     width: 1024,
                     height: 576,  // 16:9 aspect ratio for YouTube thumbnails
@@ -1056,7 +1075,7 @@ Format your response as JSON with this exact structure:
             } else {
                 // Use Pollinations AI (free) for thumbnail
                 console.log(`Using Pollinations AI for thumbnail`);
-                const encodedPrompt = encodeURIComponent(scenes.thumbnailImagePrompt);
+                const encodedPrompt = encodeURIComponent(thumbnailPrompt);
                 thumbnailUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=576&nologo=true`;
             }
 
@@ -3625,7 +3644,7 @@ Format your response as JSON with this exact structure:
     window.regenerateThumbnail = async function(index) {
         if (index >= 0 && index < processingData.length) {
             const item = processingData[index];
-            console.log(`🔄 Regenerating thumbnail for ${item.topic}`);
+            console.log(`🔄 Regenerating thumbnail for ${item.topic} with prompt variation`);
 
             // Reset thumbnail status to trigger regeneration
             item.thumbnail = 'generating...';
@@ -3633,7 +3652,8 @@ Format your response as JSON with this exact structure:
             saveToLocalStorage();
 
             try {
-                await generateThumbnail(item);
+                // Pass true to indicate this is a regeneration (adds variation)
+                await generateThumbnail(item, true);
                 console.log(`✅ Thumbnail regenerated successfully for ${item.topic}`);
             } catch (error) {
                 console.error(`❌ Failed to regenerate thumbnail for ${item.topic}:`, error);
