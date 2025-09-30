@@ -60,13 +60,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const testVoiceStatus = document.getElementById('test-voice-status');
     const testAudio = document.getElementById('test-audio');
     const leonardoStatus = document.getElementById('leonardo-status');
-    const longScriptWordsInput = document.getElementById('long-script-words');
+    const wordCountRadio = document.getElementById('word-count-radio');
+    const characterCountRadio = document.getElementById('character-count-radio');
+    const wordCountSection = document.getElementById('word-count-section');
+    const characterCountSection = document.getElementById('character-count-section');
+    const scriptWordCountInput = document.getElementById('script-word-count');
+    const scriptCharacterCountInput = document.getElementById('script-character-count');
+    const scriptSceneCountInput = document.getElementById('script-scene-count');
     const saveScriptConfigBtn = document.getElementById('save-script-config');
-    const currentWordCountSpan = document.getElementById('current-word-count');
-    const characterCountsContainer = document.getElementById('character-counts-container');
-    const addCharacterCountBtn = document.getElementById('add-character-count-btn');
-    const sceneCountsContainer = document.getElementById('scene-counts-container');
-    const addSceneCountBtn = document.getElementById('add-scene-count-btn');
+    const currentScriptConfig = document.getElementById('current-script-config');
     const selectionCount = document.getElementById('selection-count');
     const selectAllBtn = document.getElementById('select-all-btn');
     const deselectAllBtn = document.getElementById('deselect-all-btn');
@@ -117,9 +119,12 @@ document.addEventListener('DOMContentLoaded', function() {
     let leonardoEnabled = false; // Toggle for Leonardo.ai vs Pollinations AI
     let selectedLeonardoModel = 'de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3'; // Default to Leonardo Phoenix 1.0
     let leonardoAlchemyEnabled = false; // Default to disabled to save credits
-    let longScriptWordCount = 6000; // Default word count for Long videos
-    let characterCounts = []; // Array to store character count preferences
-    let sceneCounts = []; // Array to store scene count preferences
+
+    // Script Configuration
+    let scriptLengthType = 'words'; // 'words' or 'characters'
+    let scriptWordCount = 6000; // Default word count
+    let scriptCharacterCount = 30000; // Default character count
+    let scriptSceneCount = 10; // Default number of scenes
 
     // Calendar state
     let currentDate = new Date();
@@ -1806,9 +1811,10 @@ Format your response as JSON with this exact structure:
             localStorage.setItem('bc_generator_leonardo_model', selectedLeonardoModel);
             localStorage.setItem('bc_generator_leonardo_alchemy', leonardoAlchemyEnabled);
             localStorage.setItem('bc_generator_paused_items', JSON.stringify(Array.from(pausedItems)));
-            localStorage.setItem('bc_generator_script_word_count', longScriptWordCount);
-            localStorage.setItem('bc_generator_character_counts', JSON.stringify(characterCounts));
-            localStorage.setItem('bc_generator_scene_counts', JSON.stringify(sceneCounts));
+            localStorage.setItem('bc_generator_script_length_type', scriptLengthType);
+            localStorage.setItem('bc_generator_script_word_count', scriptWordCount);
+            localStorage.setItem('bc_generator_script_character_count', scriptCharacterCount);
+            localStorage.setItem('bc_generator_script_scene_count', scriptSceneCount);
             localStorage.setItem('bc_generator_weekday_time', weekdayScheduleTime);
             localStorage.setItem('bc_generator_weekend_time', weekendScheduleTime);
             localStorage.setItem('bc_generator_timestamp', new Date().toISOString());
@@ -1926,29 +1932,35 @@ Format your response as JSON with this exact structure:
                 pausedItems = new Set(JSON.parse(savedPausedItems));
             }
 
+            const savedScriptLengthType = localStorage.getItem('bc_generator_script_length_type');
+            if (savedScriptLengthType) {
+                scriptLengthType = savedScriptLengthType;
+                if (scriptLengthType === 'words') {
+                    wordCountRadio.checked = true;
+                } else {
+                    characterCountRadio.checked = true;
+                }
+            }
+
             const savedScriptWordCount = localStorage.getItem('bc_generator_script_word_count');
             if (savedScriptWordCount) {
-                longScriptWordCount = parseInt(savedScriptWordCount);
-                // Update UI elements if they exist
-                if (longScriptWordsInput) {
-                    longScriptWordsInput.value = longScriptWordCount;
-                }
-                if (currentWordCountSpan) {
-                    currentWordCountSpan.textContent = longScriptWordCount;
-                }
+                scriptWordCount = parseInt(savedScriptWordCount);
+                scriptWordCountInput.value = scriptWordCount;
             }
 
-            const savedCharacterCounts = localStorage.getItem('bc_generator_character_counts');
-            if (savedCharacterCounts) {
-                characterCounts = JSON.parse(savedCharacterCounts);
-                renderCharacterCounts();
+            const savedScriptCharacterCount = localStorage.getItem('bc_generator_script_character_count');
+            if (savedScriptCharacterCount) {
+                scriptCharacterCount = parseInt(savedScriptCharacterCount);
+                scriptCharacterCountInput.value = scriptCharacterCount;
             }
 
-            const savedSceneCounts = localStorage.getItem('bc_generator_scene_counts');
-            if (savedSceneCounts) {
-                sceneCounts = JSON.parse(savedSceneCounts);
-                renderSceneCounts();
+            const savedScriptSceneCount = localStorage.getItem('bc_generator_script_scene_count');
+            if (savedScriptSceneCount) {
+                scriptSceneCount = parseInt(savedScriptSceneCount);
+                scriptSceneCountInput.value = scriptSceneCount;
             }
+
+            updateScriptLengthUI();
 
             // Load scheduling settings
             loadSchedulingSettings();
@@ -3462,102 +3474,73 @@ Format your response as JSON with this exact structure:
         }
     });
 
-    // Character Count Management Functions
-    function renderCharacterCounts() {
-        characterCountsContainer.innerHTML = '';
-        characterCounts.forEach((entry, index) => {
-            const entryDiv = document.createElement('div');
-            entryDiv.className = 'character-count-entry';
-            entryDiv.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px; align-items: center;';
-            entryDiv.innerHTML = `
-                <input type="text" placeholder="Duration (e.g., 5 min)" value="${entry.duration || ''}"
-                    class="api-input" style="flex: 1;" data-index="${index}" data-field="duration">
-                <input type="number" placeholder="Character count" value="${entry.count || ''}"
-                    class="api-input" style="flex: 1;" min="100" data-index="${index}" data-field="count">
-                <button class="btn-mini" onclick="removeCharacterCount(${index})" title="Remove">✕</button>
-            `;
-            characterCountsContainer.appendChild(entryDiv);
-        });
+    // Script Configuration - Toggle between word count and character count
+    function updateScriptLengthUI() {
+        if (scriptLengthType === 'words') {
+            wordCountSection.style.display = 'block';
+            characterCountSection.style.display = 'none';
+        } else {
+            wordCountSection.style.display = 'none';
+            characterCountSection.style.display = 'block';
+        }
+        updateCurrentScriptConfig();
     }
 
-    function addCharacterCountEntry() {
-        characterCounts.push({ duration: '', count: '' });
-        renderCharacterCounts();
+    function updateCurrentScriptConfig() {
+        const lengthText = scriptLengthType === 'words'
+            ? `${scriptWordCount} words`
+            : `${scriptCharacterCount} characters`;
+        currentScriptConfig.textContent = `• ${lengthText}, ${scriptSceneCount} scenes`;
     }
 
-    window.removeCharacterCount = function(index) {
-        characterCounts.splice(index, 1);
-        renderCharacterCounts();
-    };
-
-    // Update character count values when inputs change
-    characterCountsContainer.addEventListener('input', function(e) {
-        if (e.target.dataset.index !== undefined) {
-            const index = parseInt(e.target.dataset.index);
-            const field = e.target.dataset.field;
-            if (characterCounts[index]) {
-                characterCounts[index][field] = e.target.value;
-            }
+    wordCountRadio.addEventListener('change', function() {
+        if (this.checked) {
+            scriptLengthType = 'words';
+            updateScriptLengthUI();
         }
     });
 
-    addCharacterCountBtn.addEventListener('click', addCharacterCountEntry);
-
-    // Scene Count Management Functions
-    function renderSceneCounts() {
-        sceneCountsContainer.innerHTML = '';
-        sceneCounts.forEach((entry, index) => {
-            const entryDiv = document.createElement('div');
-            entryDiv.className = 'scene-count-entry';
-            entryDiv.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px; align-items: center;';
-            entryDiv.innerHTML = `
-                <input type="text" placeholder="Type/Duration (e.g., Long, Short)" value="${entry.type || ''}"
-                    class="api-input" style="flex: 1;" data-index="${index}" data-field="type">
-                <input type="number" placeholder="Number of scenes" value="${entry.scenes || ''}"
-                    class="api-input" style="flex: 1;" min="1" data-index="${index}" data-field="scenes">
-                <button class="btn-mini" onclick="removeSceneCount(${index})" title="Remove">✕</button>
-            `;
-            sceneCountsContainer.appendChild(entryDiv);
-        });
-    }
-
-    function addSceneCountEntry() {
-        sceneCounts.push({ type: '', scenes: '' });
-        renderSceneCounts();
-    }
-
-    window.removeSceneCount = function(index) {
-        sceneCounts.splice(index, 1);
-        renderSceneCounts();
-    };
-
-    // Update scene count values when inputs change
-    sceneCountsContainer.addEventListener('input', function(e) {
-        if (e.target.dataset.index !== undefined) {
-            const index = parseInt(e.target.dataset.index);
-            const field = e.target.dataset.field;
-            if (sceneCounts[index]) {
-                sceneCounts[index][field] = e.target.value;
-            }
+    characterCountRadio.addEventListener('change', function() {
+        if (this.checked) {
+            scriptLengthType = 'characters';
+            updateScriptLengthUI();
         }
     });
-
-    addSceneCountBtn.addEventListener('click', addSceneCountEntry);
 
     // Script Configuration Management
     saveScriptConfigBtn.addEventListener('click', function() {
-        const wordCount = parseInt(longScriptWordsInput.value.trim());
-        if (wordCount && wordCount >= 1000 && wordCount <= 20000) {
-            longScriptWordCount = wordCount;
+        let isValid = false;
+        let errorMessage = '';
 
-            // Filter out empty character count entries
-            characterCounts = characterCounts.filter(entry => entry.duration && entry.count);
+        if (scriptLengthType === 'words') {
+            const wordCount = parseInt(scriptWordCountInput.value);
+            if (wordCount && wordCount >= 1000 && wordCount <= 20000) {
+                scriptWordCount = wordCount;
+                isValid = true;
+            } else {
+                errorMessage = 'Please enter a valid word count between 1,000 and 20,000';
+            }
+        } else {
+            const charCount = parseInt(scriptCharacterCountInput.value);
+            if (charCount && charCount >= 5000 && charCount <= 100000) {
+                scriptCharacterCount = charCount;
+                isValid = true;
+            } else {
+                errorMessage = 'Please enter a valid character count between 5,000 and 100,000';
+            }
+        }
 
-            // Filter out empty scene count entries
-            sceneCounts = sceneCounts.filter(entry => entry.type && entry.scenes);
+        const sceneCount = parseInt(scriptSceneCountInput.value);
+        if (sceneCount && sceneCount >= 1 && sceneCount <= 50) {
+            scriptSceneCount = sceneCount;
+        } else {
+            isValid = false;
+            errorMessage = 'Please enter a valid number of scenes between 1 and 50';
+        }
 
+        if (isValid) {
             saveToLocalStorage();
-            currentWordCountSpan.textContent = wordCount;
+            updateCurrentScriptConfig();
 
             // Show success feedback
             const originalText = saveScriptConfigBtn.textContent;
@@ -3569,11 +3552,12 @@ Format your response as JSON with this exact structure:
                 saveScriptConfigBtn.style.backgroundColor = '';
             }, 2000);
 
-            console.log(`Script word count updated to: ${wordCount} words`);
-            console.log(`Character counts:`, characterCounts);
-            console.log(`Scene counts:`, sceneCounts);
+            console.log(`Script configuration updated:`);
+            console.log(`  Type: ${scriptLengthType}`);
+            console.log(`  ${scriptLengthType === 'words' ? 'Word count' : 'Character count'}: ${scriptLengthType === 'words' ? scriptWordCount : scriptCharacterCount}`);
+            console.log(`  Scene count: ${scriptSceneCount}`);
         } else {
-            alert('Please enter a valid word count between 1,000 and 20,000');
+            alert(errorMessage);
         }
     });
 
