@@ -23,8 +23,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const saveApiKeyBtn = document.getElementById('save-api-key');
     const testApiKeyBtn = document.getElementById('test-api-key');
     const apiStatus = document.getElementById('api-status');
-    const elevenlabsApiKeyInput = document.getElementById('elevenlabs-api-key');
-    const saveElevenlabsKeyBtn = document.getElementById('save-elevenlabs-key');
     const elevenlabsVoiceIdInput = document.getElementById('elevenlabs-voice-id');
     const saveVoiceIdBtn = document.getElementById('save-voice-id');
     const elevenlabsStatus = document.getElementById('elevenlabs-status');
@@ -94,7 +92,6 @@ document.addEventListener('DOMContentLoaded', function() {
     let nextProcessingId = 1;
     let usedTopicIds = new Set();
     let openaiApiKey = '';
-    let elevenlabsApiKey = '';
     let elevenlabsVoiceId = '';
     let lateApiKey = '';
     let leonardoApiKey = '';
@@ -660,14 +657,11 @@ Format your response as JSON with this exact structure:
         }
     }
 
-    // Generate voice overs using ElevenLabs API
+    // Generate voice overs using Edge TTS (Free)
     async function generateVoiceOvers(processingItem, retryOnly = false) {
-        if (!elevenlabsApiKey) {
-            throw new Error('ElevenLabs API key not configured');
-        }
-
+        // Voice ID is optional - defaults to 'en-US-AvaMultilingualNeural' if not set
         if (!elevenlabsVoiceId) {
-            throw new Error('ElevenLabs Voice ID not configured');
+            console.log('⚠️ No voice selected, using default: en-US-AvaMultilingualNeural');
         }
 
         // Check if this item is paused
@@ -780,17 +774,16 @@ Format your response as JSON with this exact structure:
                     try {
                         console.log(`🔄 Attempt ${attemptCount} for scene ${sceneNumber}`);
 
-                        // Use ElevenLabs SDK via IPC
+                        // Use Edge TTS via IPC (Free)
                         const voiceResult = await ipcRenderer.invoke('generate-voice', {
                             text: scene.script,
-                            apiKey: elevenlabsApiKey,
-                            voiceId: elevenlabsVoiceId,
+                            voiceId: elevenlabsVoiceId || 'en-US-AvaMultilingualNeural',
                             sceneNumber: sceneNumber
                         });
 
                         if (!voiceResult.success) {
-                            console.error(`❌ ElevenLabs voice generation error: ${voiceResult.error}`);
-                            throw new Error(`ElevenLabs voice generation error: ${voiceResult.error}`);
+                            console.error(`❌ Edge TTS voice generation error: ${voiceResult.error}`);
+                            throw new Error(`Edge TTS voice generation error: ${voiceResult.error}`);
                         }
 
                         console.log(`📦 Received audio data for scene ${sceneNumber}: ${voiceResult.fileSize} bytes`);
@@ -1071,21 +1064,15 @@ Format your response as JSON with this exact structure:
             // Automatically start voice generation after thumbnail is done
             console.log(`🎤 Thumbnail complete for ${processingItem.topic} - starting voice generation...`);
 
-            if (!elevenlabsApiKey || !elevenlabsVoiceId) {
-                console.warn(`❌ Voice generation skipped: Missing ElevenLabs configuration`);
-                processingItem.voiceOvers = 'config missing';
+            // Voice generation is always available with Edge TTS (free)
+            try {
+                await generateVoiceOvers(processingItem);
+            } catch (voiceError) {
+                console.error(`❌ Voice generation failed for ${processingItem.topic}:`, voiceError);
+                processingItem.voiceOvers = 'failed';
+                processingItem.voiceError = voiceError.message;
                 populateProcessingTable();
                 saveToLocalStorage();
-            } else {
-                try {
-                    await generateVoiceOvers(processingItem);
-                } catch (voiceError) {
-                    console.error(`❌ Voice generation failed for ${processingItem.topic}:`, voiceError);
-                    processingItem.voiceOvers = 'failed';
-                    processingItem.voiceError = voiceError.message;
-                    populateProcessingTable();
-                    saveToLocalStorage();
-                }
             }
 
         } catch (error) {
@@ -1220,25 +1207,18 @@ Format your response as JSON with this exact structure:
 
             // Automatically start voice generation for Shorts after images are copied
             console.log(`🎤 Images copied for Shorts ${processingItem.topic} - starting voice generation...`);
-            console.log(`Voice generation prerequisites check:`);
-            console.log(`- ElevenLabs API Key configured: ${elevenlabsApiKey ? 'YES' : 'NO'}`);
-            console.log(`- ElevenLabs Voice ID configured: ${elevenlabsVoiceId ? 'YES' : 'NO'}`);
+            console.log(`Voice generation using Edge TTS (Free)`);
+            console.log(`- Selected Voice: ${elevenlabsVoiceId || 'en-US-AvaMultilingualNeural (default)'}`);
 
-            if (!elevenlabsApiKey || !elevenlabsVoiceId) {
-                console.warn(`❌ Voice generation skipped for Shorts: Missing ElevenLabs configuration`);
-                processingItem.voiceOvers = 'config missing';
+            // Voice generation is always available with Edge TTS (free)
+            try {
+                await generateVoiceOvers(processingItem);
+            } catch (voiceError) {
+                console.error(`❌ Voice generation failed for Shorts ${processingItem.topic}:`, voiceError);
+                processingItem.voiceOvers = 'failed';
+                processingItem.voiceError = voiceError.message;
                 populateProcessingTable();
                 saveToLocalStorage();
-            } else {
-                try {
-                    await generateVoiceOvers(processingItem);
-                } catch (voiceError) {
-                    console.error(`❌ Voice generation failed for Shorts ${processingItem.topic}:`, voiceError);
-                    processingItem.voiceOvers = 'failed';
-                    processingItem.voiceError = voiceError.message;
-                    populateProcessingTable();
-                    saveToLocalStorage();
-                }
             }
 
             return; // Exit early for Shorts videos
@@ -1760,7 +1740,6 @@ Format your response as JSON with this exact structure:
             localStorage.setItem('bc_generator_next_id', nextProcessingId);
             localStorage.setItem('bc_generator_used_ids', JSON.stringify(Array.from(usedTopicIds)));
             localStorage.setItem('bc_generator_openai_key', openaiApiKey);
-            localStorage.setItem('bc_generator_elevenlabs_key', elevenlabsApiKey);
             localStorage.setItem('bc_generator_elevenlabs_voice_id', elevenlabsVoiceId);
             localStorage.setItem('bc_generator_late_key', lateApiKey);
             localStorage.setItem('bc_generator_leonardo_key', leonardoApiKey);
@@ -1837,21 +1816,11 @@ Format your response as JSON with this exact structure:
                 updateApiStatus('saved');
             }
 
-            const savedElevenlabsKey = localStorage.getItem('bc_generator_elevenlabs_key');
-            if (savedElevenlabsKey) {
-                elevenlabsApiKey = savedElevenlabsKey;
-                elevenlabsApiKeyInput.value = savedElevenlabsKey;
-                updateElevenlabsStatus('saved');
-            }
-
+            // Load saved Edge TTS voice selection
             const savedVoiceId = localStorage.getItem('bc_generator_elevenlabs_voice_id');
             if (savedVoiceId) {
                 elevenlabsVoiceId = savedVoiceId;
                 elevenlabsVoiceIdInput.value = savedVoiceId;
-                // Show test button if we have all requirements on page load
-                if (elevenlabsApiKey && elevenlabsVoiceId && testVoiceInput.value.trim()) {
-                    testVoiceBtn.style.display = 'inline-block';
-                }
             }
 
             const savedLateKey = localStorage.getItem('bc_generator_late_key');
@@ -1908,7 +1877,6 @@ Format your response as JSON with this exact structure:
         try {
             // Preserve API keys before clearing
             const apiKey = localStorage.getItem('bc_generator_openai_key');
-            const elevenlabsKey = localStorage.getItem('bc_generator_elevenlabs_key');
             const voiceId = localStorage.getItem('bc_generator_elevenlabs_voice_id');
             const lateKey = localStorage.getItem('bc_generator_late_key');
             const leonardoKey = localStorage.getItem('bc_generator_leonardo_key');
@@ -1921,12 +1889,9 @@ Format your response as JSON with this exact structure:
             localStorage.removeItem('bc_generator_script_word_count');
             localStorage.removeItem('bc_generator_timestamp');
 
-            // Restore API keys if they existed
+            // Restore API keys and voice selection if they existed
             if (apiKey) {
                 localStorage.setItem('bc_generator_openai_key', apiKey);
-            }
-            if (elevenlabsKey) {
-                localStorage.setItem('bc_generator_elevenlabs_key', elevenlabsKey);
             }
             if (voiceId) {
                 localStorage.setItem('bc_generator_elevenlabs_voice_id', voiceId);
@@ -1946,7 +1911,6 @@ Format your response as JSON with this exact structure:
         try {
             // Preserve API keys and all other settings
             const apiKey = localStorage.getItem('bc_generator_openai_key');
-            const elevenlabsKey = localStorage.getItem('bc_generator_elevenlabs_key');
             const voiceId = localStorage.getItem('bc_generator_elevenlabs_voice_id');
             const lateKey = localStorage.getItem('bc_generator_late_key');
             const leonardoKey = localStorage.getItem('bc_generator_leonardo_key');
@@ -1969,7 +1933,6 @@ Format your response as JSON with this exact structure:
 
             // Restore all preserved data
             if (apiKey) localStorage.setItem('bc_generator_openai_key', apiKey);
-            if (elevenlabsKey) localStorage.setItem('bc_generator_elevenlabs_key', elevenlabsKey);
             if (voiceId) localStorage.setItem('bc_generator_elevenlabs_voice_id', voiceId);
             if (lateKey) localStorage.setItem('bc_generator_late_key', lateKey);
             if (leonardoKey) localStorage.setItem('bc_generator_leonardo_key', leonardoKey);
@@ -2024,24 +1987,6 @@ Format your response as JSON with this exact structure:
         }
     }
 
-    function updateElevenlabsStatus(status) {
-        const statusText = elevenlabsStatus.querySelector('.status-text');
-
-        switch (status) {
-            case 'saved':
-                statusText.textContent = 'ElevenLabs API key saved and ready';
-                statusText.style.color = '#008000';
-                // Show test button if we have both API key and voice ID and test text
-                if (elevenlabsApiKey && elevenlabsVoiceId && testVoiceInput.value.trim()) {
-                    testVoiceBtn.style.display = 'inline-block';
-                }
-                break;
-            default:
-                statusText.textContent = 'No ElevenLabs API key configured';
-                statusText.style.color = '#666666';
-                testVoiceBtn.style.display = 'none';
-        }
-    }
 
     function updateLateStatus(status) {
         const statusText = lateStatus.querySelector('.status-text');
@@ -3100,42 +3045,20 @@ Format your response as JSON with this exact structure:
         }
     });
 
-    // ElevenLabs API Management
-    saveElevenlabsKeyBtn.addEventListener('click', function() {
-        const apiKey = elevenlabsApiKeyInput.value.trim();
-        if (apiKey) {
-            elevenlabsApiKey = apiKey;
-            saveToLocalStorage();
-            updateElevenlabsStatus('saved');
-        }
-    });
-
-
+    // Edge TTS Voice Management
     saveVoiceIdBtn.addEventListener('click', function() {
         const voiceId = elevenlabsVoiceIdInput.value.trim();
         if (voiceId) {
             elevenlabsVoiceId = voiceId;
             saveToLocalStorage();
-            // Show test button if we have all requirements
-            if (elevenlabsApiKey && elevenlabsVoiceId && testVoiceInput.value.trim()) {
-                testVoiceBtn.style.display = 'inline-block';
-            }
-        }
-    });
-
-    // Test voice input changes
-    testVoiceInput.addEventListener('input', function() {
-        if (elevenlabsApiKey && elevenlabsVoiceId && testVoiceInput.value.trim()) {
-            testVoiceBtn.style.display = 'inline-block';
-        } else {
-            testVoiceBtn.style.display = 'none';
+            alert('Voice saved successfully!');
         }
     });
 
     // Test voice generation
     testVoiceBtn.addEventListener('click', async function() {
         const text = testVoiceInput.value.trim();
-        if (!text || !elevenlabsApiKey || !elevenlabsVoiceId) {
+        if (!text) {
             return;
         }
 
@@ -3150,12 +3073,11 @@ Format your response as JSON with this exact structure:
             testVoiceStatus.textContent = 'Generating voice...';
             testVoiceStatus.style.color = '#0066cc';
 
-            // Use the same IPC call as the main voice generation
+            // Use the same IPC call as the main voice generation (Edge TTS)
             const { ipcRenderer } = require('electron');
             const voiceResult = await ipcRenderer.invoke('generate-voice', {
                 text: text,
-                apiKey: elevenlabsApiKey,
-                voiceId: elevenlabsVoiceId,
+                voiceId: elevenlabsVoiceId || 'en-US-AvaMultilingualNeural',
                 sceneNumber: 'test'
             });
 
@@ -3868,29 +3790,20 @@ Format your response as JSON with this exact structure:
         // Auto-generate voice for items that have images but no voice
         if (itemsToGenerateVoice.length > 0) {
             console.log(`🚀 Starting auto voice generation for ${itemsToGenerateVoice.length} items`);
-            console.log(`Voice generation prerequisites check:`);
-            console.log(`- ElevenLabs API Key configured: ${elevenlabsApiKey ? 'YES' : 'NO'}`);
-            console.log(`- ElevenLabs Voice ID configured: ${elevenlabsVoiceId ? 'YES' : 'NO'}`);
+            console.log(`Voice generation using Edge TTS (Free)`);
+            console.log(`- Selected Voice: ${elevenlabsVoiceId || 'en-US-AvaMultilingualNeural (default)'}`);
 
-            if (!elevenlabsApiKey || !elevenlabsVoiceId) {
-                console.warn(`❌ Voice generation skipped: Missing ElevenLabs configuration`);
-                for (const item of itemsToGenerateVoice) {
-                    item.voiceOvers = 'config missing';
-                }
-                populateProcessingTable();
-                saveToLocalStorage();
-            } else {
-                for (const item of itemsToGenerateVoice) {
-                    console.log(`🎤 Auto-generating voice for ${item.topic}`);
-                    try {
-                        await generateVoiceOvers(item);
-                    } catch (voiceError) {
-                        console.error(`❌ Auto voice generation failed for ${item.topic}:`, voiceError);
-                        item.voiceOvers = 'failed';
-                        item.voiceError = voiceError.message;
-                        populateProcessingTable();
-                        saveToLocalStorage();
-                    }
+            // Voice generation is always available with Edge TTS (free)
+            for (const item of itemsToGenerateVoice) {
+                console.log(`🎤 Auto-generating voice for ${item.topic}`);
+                try {
+                    await generateVoiceOvers(item);
+                } catch (voiceError) {
+                    console.error(`❌ Auto voice generation failed for ${item.topic}:`, voiceError);
+                    item.voiceOvers = 'failed';
+                    item.voiceError = voiceError.message;
+                    populateProcessingTable();
+                    saveToLocalStorage();
                 }
             }
         } else {

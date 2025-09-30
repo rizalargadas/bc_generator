@@ -1,8 +1,13 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const https = require('https');
-const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
+import path from 'path';
+import fs from 'fs';
+import https from 'https';
+import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 function createWindow() {
     const win = new BrowserWindow({
@@ -478,32 +483,99 @@ ipcMain.handle('check-thumbnail', async (event, { outputDir }) => {
     }
 });
 
-// Generate voice using ElevenLabs SDK
-ipcMain.handle('generate-voice', async (event, { text, apiKey, voiceId, sceneNumber }) => {
+// Get available Edge TTS voices
+ipcMain.handle('get-edge-voices', async (event) => {
     try {
-        console.log(`Generating voice for scene ${sceneNumber} using ElevenLabs SDK`);
+        console.log('Fetching available Edge TTS voices...');
 
-        // Create ElevenLabs client
-        const elevenlabs = new ElevenLabsClient({
-            apiKey: apiKey
+        // Return predefined list of voices
+        const voices = [
+            { ShortName: 'en-US-AvaMultilingualNeural', Gender: 'Female', Locale: 'en-US' },
+            { ShortName: 'en-US-AndrewMultilingualNeural', Gender: 'Male', Locale: 'en-US' },
+            { ShortName: 'en-US-AmandaMultilingualNeural', Gender: 'Female', Locale: 'en-US' },
+            { ShortName: 'en-US-AdamMultilingualNeural', Gender: 'Male', Locale: 'en-US' },
+            { ShortName: 'en-US-SteffanMultilingualNeural', Gender: 'Male', Locale: 'en-US' },
+            { ShortName: 'en-US-ChristopherNeural', Gender: 'Male', Locale: 'en-US' },
+            { ShortName: 'en-US-OnyxTurboMultilingualNeural', Gender: 'Male', Locale: 'en-US' }
+        ];
+
+        console.log(`Found ${voices.length} Edge TTS voices`);
+
+        return {
+            success: true,
+            voices: voices
+        };
+    } catch (error) {
+        console.error('Error fetching Edge TTS voices:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+});
+
+// Generate voice using Edge TTS (Free)
+ipcMain.handle('generate-voice', async (event, { text, voiceId, sceneNumber }) => {
+    try {
+        console.log(`Generating voice for scene ${sceneNumber} using Edge TTS (voice: ${voiceId})`);
+
+        // Extract locale from voice name or default to en-US
+        // If voiceId doesn't match Edge TTS pattern (e.g., it's an old ElevenLabs ID), use default
+        const edgeTTSPattern = /^[a-z]{2}-[A-Z]{2}-/;
+        const voiceName = (voiceId && edgeTTSPattern.test(voiceId))
+            ? voiceId
+            : 'en-US-AvaMultilingualNeural';
+
+        console.log(`Voice: ${voiceName}`);
+
+        // Create temp directory if it doesn't exist
+        const tempDir = path.join(__dirname, 'temp');
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
+
+        // Generate unique filename for this audio
+        const tempFile = path.join(tempDir, `tts_${Date.now()}_${sceneNumber}.mp3`);
+
+        console.log('Calling Python script to generate audio...');
+
+        // Call Python script to generate audio
+        await new Promise((resolve, reject) => {
+            const pythonScript = path.join(__dirname, 'edge_tts_generate.py');
+            const python = spawn('python', [pythonScript, tempFile, voiceName, text]);
+
+            let stdout = '';
+            let stderr = '';
+
+            python.stdout.on('data', (data) => {
+                stdout += data.toString();
+                console.log('Python stdout:', data.toString());
+            });
+
+            python.stderr.on('data', (data) => {
+                stderr += data.toString();
+                console.error('Python stderr:', data.toString());
+            });
+
+            python.on('close', (code) => {
+                if (code === 0) {
+                    console.log('Python script completed successfully');
+                    resolve();
+                } else {
+                    reject(new Error(`Python script failed with code ${code}: ${stderr}`));
+                }
+            });
+
+            python.on('error', (err) => {
+                reject(new Error(`Failed to start Python script: ${err.message}`));
+            });
         });
 
-        // Generate audio using the SDK
-        const audio = await elevenlabs.textToSpeech.convert(
-            voiceId,
-            {
-                text: text,
-                modelId: 'eleven_multilingual_v2',
-                outputFormat: 'mp3_44100_128'
-            }
-        );
+        // Read the generated audio file
+        const buffer = fs.readFileSync(tempFile);
 
-        // Convert audio stream to buffer
-        const chunks = [];
-        for await (const chunk of audio) {
-            chunks.push(chunk);
-        }
-        const buffer = Buffer.concat(chunks);
+        // Clean up temp file
+        fs.unlinkSync(tempFile);
 
         console.log(`Voice generated successfully for scene ${sceneNumber}: ${buffer.length} bytes`);
 
@@ -514,7 +586,7 @@ ipcMain.handle('generate-voice', async (event, { text, apiKey, voiceId, sceneNum
         };
 
     } catch (error) {
-        console.error('ElevenLabs voice generation error:', error);
+        console.error('Edge TTS voice generation error:', error);
         return {
             success: false,
             error: error.message,
