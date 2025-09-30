@@ -830,13 +830,13 @@ Format your response as JSON with this exact structure:
 
             console.log(`🎤 Voice generation completed: ${successCount}/${scenes.length} successful`);
 
-            // Update status
-            if (failedScenes.length === 0) {
+            // Update status - only mark as "done" if all scenes have audio
+            if (failedScenes.length === 0 && successCount === scenes.length) {
                 processingItem.voiceOvers = 'done';
-                console.log(`✅ All voice overs generated successfully for ${processingItem.topic}`);
+                console.log(`✅ All ${successCount}/${scenes.length} voice overs generated successfully for ${processingItem.topic}`);
             } else {
-                processingItem.voiceOvers = `${successCount}/${scenes.length} done`;
-                console.log(`⚠️ Voice generation partially completed: ${failedScenes.length} scenes failed: [${failedScenes.join(', ')}]`);
+                processingItem.voiceOvers = `${successCount}/${scenes.length}`;
+                console.log(`⚠️ Voice generation incomplete: ${successCount}/${scenes.length} successful, ${failedScenes.length} failed: [${failedScenes.join(', ')}]`);
             }
 
             populateProcessingTable();
@@ -3704,18 +3704,19 @@ Format your response as JSON with this exact structure:
                         }
                     }
 
-                    // Update audio status - simplified to just show "done" when audio files exist
+                    // Update audio status - only mark as "done" if count matches scene count
                     if (status.audioCount > 0) {
-                        // If there are any audio files, mark as done
-                        item.voiceOvers = 'done';
-
-                        // Still log detailed info for debugging
+                        // Check if audio count matches total scenes
                         if (item.totalScenes && status.audioCount === item.totalScenes) {
-                            console.log(`🔊 ${item.topic}: All ${status.audioCount} audio files complete`);
+                            item.voiceOvers = 'done';
+                            console.log(`🔊 ${item.topic}: All ${status.audioCount}/${item.totalScenes} audio files complete`);
                         } else if (item.totalScenes) {
-                            console.log(`🎵 ${item.topic}: ${status.audioCount}/${item.totalScenes} audio files found - displaying as done`);
+                            item.voiceOvers = `${status.audioCount}/${item.totalScenes}`;
+                            console.log(`🎵 ${item.topic}: ${status.audioCount}/${item.totalScenes} audio files found - incomplete`);
                         } else {
-                            console.log(`🎵 ${item.topic}: Found ${status.audioCount} audio files - displaying as done`);
+                            // If we don't know total scenes yet, show count
+                            item.voiceOvers = `${status.audioCount} audio files`;
+                            console.log(`🎵 ${item.topic}: Found ${status.audioCount} audio files (total scenes unknown)`);
                         }
 
                         // Log which specific audio files exist
