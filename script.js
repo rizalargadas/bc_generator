@@ -5137,11 +5137,19 @@ function moveTopicsToPending() {
         // Show success message
         alert(`Successfully added ${topicCount} topic${topicCount > 1 ? 's' : ''} (${totalEntries} entries: Long + Shorts) to Pending Topics!`);
 
-        // Force page refresh to ensure topics appear
-        console.log('Reloading page to refresh pending topics');
-        setTimeout(() => {
-            window.location.reload();
-        }, 1000);
+        // Update csvData immediately to refresh the table
+        csvData = pendingTopics;
+
+        // Refresh the Pending Topics table
+        populateTable();
+
+        // Switch to Pending Topics tab
+        const pendingTabButton = document.querySelector('[data-tab="pending"]');
+        if (pendingTabButton) {
+            pendingTabButton.click();
+        }
+
+        console.log('Topics moved to pending and table updated');
     } else {
         console.log('User cancelled');
     }
