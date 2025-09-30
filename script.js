@@ -1799,6 +1799,7 @@ Format your response as JSON with this exact structure:
     // LocalStorage functions
     function saveToLocalStorage() {
         try {
+            console.log('💾 Saving to localStorage...');
             localStorage.setItem('bc_generator_data', JSON.stringify(csvData));
             localStorage.setItem('bc_generator_processing', JSON.stringify(processingData));
             localStorage.setItem('bc_generator_next_id', nextProcessingId);
@@ -1818,17 +1819,21 @@ Format your response as JSON with this exact structure:
             localStorage.setItem('bc_generator_weekday_time', weekdayScheduleTime);
             localStorage.setItem('bc_generator_weekend_time', weekendScheduleTime);
             localStorage.setItem('bc_generator_timestamp', new Date().toISOString());
+            console.log('✅ Saved to localStorage successfully');
+            console.log('Script config saved:', { scriptLengthType, scriptWordCount, scriptCharacterCount, scriptSceneCount });
         } catch (e) {
-            console.warn('Could not save to localStorage:', e);
+            console.error('❌ Could not save to localStorage:', e);
         }
     }
 
     function loadFromLocalStorage() {
         try {
+            console.log('📂 Loading from localStorage...');
             const savedData = localStorage.getItem('bc_generator_data');
             const savedProcessing = localStorage.getItem('bc_generator_processing');
             const savedNextId = localStorage.getItem('bc_generator_next_id');
             const timestamp = localStorage.getItem('bc_generator_timestamp');
+            console.log('Timestamp found:', timestamp);
 
             if (savedData) {
                 csvData = JSON.parse(savedData);
@@ -1962,10 +1967,13 @@ Format your response as JSON with this exact structure:
 
             updateScriptLengthUI();
 
+            console.log('✅ Loaded from localStorage successfully');
+            console.log('Script config loaded:', { scriptLengthType, scriptWordCount, scriptCharacterCount, scriptSceneCount });
+
             // Load scheduling settings
             loadSchedulingSettings();
         } catch (e) {
-            console.warn('Could not load from localStorage:', e);
+            console.error('❌ Could not load from localStorage:', e);
         }
     }
 
