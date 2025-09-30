@@ -896,6 +896,15 @@ Format your response as JSON with this exact structure:
         // Add thumbnail prompt and actual scene count to the result
         scenes.thumbnailImagePrompt = thumbnailImagePrompt;
         scenes.actualSceneCount = maxSceneNumber; // The actual number of scenes based on Scene # column
+
+        // Debug logging
+        console.log(`📊 parseCSVContent results:`, {
+            totalRows: scenes.length,
+            actualSceneCount: maxSceneNumber,
+            firstScene: scenes[0]?.sceneNumber,
+            lastScene: scenes[scenes.length - 1]?.sceneNumber
+        });
+
         return scenes;
     }
 
@@ -2334,6 +2343,12 @@ Format your response as JSON with this exact structure:
                     <span class="status failed">${item.voiceOvers}</span>
                     <button class="btn-mini" onclick="retryVoiceGeneration(${index})" title="Retry voice generation">Retry</button>
                 `;
+            } else if (item.voiceOvers && item.voiceOvers.includes('/') && item.voiceOvers !== 'done') {
+                // Show continue button for incomplete voice generation (e.g., "5/10")
+                voiceTd.innerHTML = `
+                    <span class="status warning">${item.voiceOvers}</span>
+                    <button class="btn-mini" onclick="continueVoiceGeneration(${index})" title="Continue generating missing audio">Continue</button>
+                `;
             } else {
                 voiceTd.innerHTML = `<span class="status ${getStatusClass(item.voiceOvers)}">${item.voiceOvers}</span>`;
             }
@@ -3542,6 +3557,15 @@ Format your response as JSON with this exact structure:
             const item = processingData[index];
             console.log(`Retrying voice generation for ${item.topic}`);
             await generateVoiceOvers(item);
+        }
+    };
+
+    // Continue incomplete voice generation (retry only missing audio)
+    window.continueVoiceGeneration = async function(index) {
+        if (index >= 0 && index < processingData.length) {
+            const item = processingData[index];
+            console.log(`Continuing voice generation for ${item.topic} - will generate only missing audio files`);
+            await generateVoiceOvers(item, true); // true = retryOnly mode
         }
     };
 
