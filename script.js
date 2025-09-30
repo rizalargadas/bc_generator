@@ -3819,10 +3819,28 @@ Format your response as JSON with this exact structure:
                         console.log(`⏳ ${item.topic}: No video files found, status reset to waiting`);
                     }
 
-                    // Update posting status - now includes thumbnail check
+                    // Update thumbnail status
                     const thumbnailResult = await checkItemThumbnail(item.outputDir, item.ytType);
                     const hasThumbnail = thumbnailResult && thumbnailResult.hasThumbnail;
 
+                    if (item.ytType === 'Shorts') {
+                        // Shorts don't need thumbnails
+                        item.thumbnail = 'not needed';
+                    } else if (hasThumbnail) {
+                        // Thumbnail exists for Long video
+                        if (item.thumbnail !== 'done' && item.thumbnail !== 'generating...') {
+                            item.thumbnail = 'done';
+                            console.log(`📸 ${item.topic}: Thumbnail found in folder`);
+                        }
+                    } else {
+                        // Long video missing thumbnail
+                        if (item.thumbnail !== 'generating...' && item.thumbnail !== 'failed') {
+                            item.thumbnail = 'waiting...';
+                            console.log(`⏳ ${item.topic}: Thumbnail missing`);
+                        }
+                    }
+
+                    // Update posting status - now includes thumbnail check
                     if (status.hasScript && status.imageCount > 0 && status.audioCount > 0 && status.hasVideo && hasThumbnail) {
                         item.posting = 'ready to schedule';
                         console.log(`🚀 ${item.topic}: Ready for posting - all assets complete`);
