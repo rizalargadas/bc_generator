@@ -65,6 +65,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const currentWordCountSpan = document.getElementById('current-word-count');
     const characterCountsContainer = document.getElementById('character-counts-container');
     const addCharacterCountBtn = document.getElementById('add-character-count-btn');
+    const sceneCountsContainer = document.getElementById('scene-counts-container');
+    const addSceneCountBtn = document.getElementById('add-scene-count-btn');
     const selectionCount = document.getElementById('selection-count');
     const selectAllBtn = document.getElementById('select-all-btn');
     const deselectAllBtn = document.getElementById('deselect-all-btn');
@@ -117,6 +119,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let leonardoAlchemyEnabled = false; // Default to disabled to save credits
     let longScriptWordCount = 6000; // Default word count for Long videos
     let characterCounts = []; // Array to store character count preferences
+    let sceneCounts = []; // Array to store scene count preferences
 
     // Calendar state
     let currentDate = new Date();
@@ -1805,6 +1808,7 @@ Format your response as JSON with this exact structure:
             localStorage.setItem('bc_generator_paused_items', JSON.stringify(Array.from(pausedItems)));
             localStorage.setItem('bc_generator_script_word_count', longScriptWordCount);
             localStorage.setItem('bc_generator_character_counts', JSON.stringify(characterCounts));
+            localStorage.setItem('bc_generator_scene_counts', JSON.stringify(sceneCounts));
             localStorage.setItem('bc_generator_weekday_time', weekdayScheduleTime);
             localStorage.setItem('bc_generator_weekend_time', weekendScheduleTime);
             localStorage.setItem('bc_generator_timestamp', new Date().toISOString());
@@ -1938,6 +1942,12 @@ Format your response as JSON with this exact structure:
             if (savedCharacterCounts) {
                 characterCounts = JSON.parse(savedCharacterCounts);
                 renderCharacterCounts();
+            }
+
+            const savedSceneCounts = localStorage.getItem('bc_generator_scene_counts');
+            if (savedSceneCounts) {
+                sceneCounts = JSON.parse(savedSceneCounts);
+                renderSceneCounts();
             }
 
             // Load scheduling settings
@@ -3493,6 +3503,47 @@ Format your response as JSON with this exact structure:
 
     addCharacterCountBtn.addEventListener('click', addCharacterCountEntry);
 
+    // Scene Count Management Functions
+    function renderSceneCounts() {
+        sceneCountsContainer.innerHTML = '';
+        sceneCounts.forEach((entry, index) => {
+            const entryDiv = document.createElement('div');
+            entryDiv.className = 'scene-count-entry';
+            entryDiv.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px; align-items: center;';
+            entryDiv.innerHTML = `
+                <input type="text" placeholder="Type/Duration (e.g., Long, Short)" value="${entry.type || ''}"
+                    class="api-input" style="flex: 1;" data-index="${index}" data-field="type">
+                <input type="number" placeholder="Number of scenes" value="${entry.scenes || ''}"
+                    class="api-input" style="flex: 1;" min="1" data-index="${index}" data-field="scenes">
+                <button class="btn-mini" onclick="removeSceneCount(${index})" title="Remove">✕</button>
+            `;
+            sceneCountsContainer.appendChild(entryDiv);
+        });
+    }
+
+    function addSceneCountEntry() {
+        sceneCounts.push({ type: '', scenes: '' });
+        renderSceneCounts();
+    }
+
+    window.removeSceneCount = function(index) {
+        sceneCounts.splice(index, 1);
+        renderSceneCounts();
+    };
+
+    // Update scene count values when inputs change
+    sceneCountsContainer.addEventListener('input', function(e) {
+        if (e.target.dataset.index !== undefined) {
+            const index = parseInt(e.target.dataset.index);
+            const field = e.target.dataset.field;
+            if (sceneCounts[index]) {
+                sceneCounts[index][field] = e.target.value;
+            }
+        }
+    });
+
+    addSceneCountBtn.addEventListener('click', addSceneCountEntry);
+
     // Script Configuration Management
     saveScriptConfigBtn.addEventListener('click', function() {
         const wordCount = parseInt(longScriptWordsInput.value.trim());
@@ -3501,6 +3552,9 @@ Format your response as JSON with this exact structure:
 
             // Filter out empty character count entries
             characterCounts = characterCounts.filter(entry => entry.duration && entry.count);
+
+            // Filter out empty scene count entries
+            sceneCounts = sceneCounts.filter(entry => entry.type && entry.scenes);
 
             saveToLocalStorage();
             currentWordCountSpan.textContent = wordCount;
@@ -3517,6 +3571,7 @@ Format your response as JSON with this exact structure:
 
             console.log(`Script word count updated to: ${wordCount} words`);
             console.log(`Character counts:`, characterCounts);
+            console.log(`Scene counts:`, sceneCounts);
         } else {
             alert('Please enter a valid word count between 1,000 and 20,000');
         }
