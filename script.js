@@ -925,15 +925,20 @@ Format your response as JSON with this exact structure:
         return scenes;
     }
 
-    // Generate thumbnail image using Leonardo.ai
+    // Generate thumbnail image using Leonardo.ai or Pollinations AI
     async function generateThumbnail(processingItem) {
-        if (!leonardoApiKey) {
-            throw new Error('Leonardo.ai API key not configured');
+        // Check if Leonardo is enabled and has API key, otherwise use Pollinations
+        const useLeonardo = leonardoEnabled && leonardoApiKey;
+
+        if (leonardoEnabled && !leonardoApiKey) {
+            throw new Error('Leonardo.ai is enabled but API key not configured. Please add your API key or disable Leonardo.ai to use free Pollinations AI.');
         }
 
         if (!processingItem.outputDir) {
             throw new Error('Output directory not found');
         }
+
+        console.log(`🎨 Using ${useLeonardo ? 'Leonardo.ai' : 'Pollinations AI'} for thumbnail generation`);
 
         // Skip thumbnail generation for Shorts
         if (processingItem.ytType === 'Shorts') {
@@ -981,74 +986,86 @@ Format your response as JSON with this exact structure:
 
             console.log(`📝 Using thumbnail prompt: ${scenes.thumbnailImagePrompt.substring(0, 100)}...`);
 
-            // Generate thumbnail using Leonardo.ai API
-            const thumbnailRequestBody = {
-                prompt: scenes.thumbnailImagePrompt,
-                modelId: selectedLeonardoModel,
-                width: 1024,
-                height: 576,  // 16:9 aspect ratio for YouTube thumbnails
-                num_images: 1,
-                alchemy: leonardoAlchemyEnabled ? true : false
-            };
-
-            // For Lucid Realism model, add required parameters
-            if (selectedLeonardoModel === '05ce0082-2d80-4a2d-8653-4d1c85e2418e') {
-                thumbnailRequestBody.contrast = 3.5;
-                thumbnailRequestBody.styleUUID = '111dc692-d470-4eec-b791-3475abac4c46';
-                thumbnailRequestBody.ultra = false;
-            } else {
-                // For other models, use presetStyle
-                thumbnailRequestBody.presetStyle = 'CINEMATIC';
-            }
-
-            const thumbnailResponse = await fetch('https://cloud.leonardo.ai/api/rest/v1/generations', {
-                method: 'POST',
-                headers: {
-                    'accept': 'application/json',
-                    'content-type': 'application/json',
-                    'authorization': `Bearer ${leonardoApiKey}`
-                },
-                body: JSON.stringify(thumbnailRequestBody)
-            });
-
-            if (!thumbnailResponse.ok) {
-                const errorText = await thumbnailResponse.text();
-                console.error('Thumbnail API Error Response:', errorText);
-                throw new Error(`Thumbnail API error: ${thumbnailResponse.status} - ${errorText}`);
-            }
-
-            const thumbnailResult = await thumbnailResponse.json();
-            const thumbnailGenerationId = thumbnailResult.sdGenerationJob.generationId;
-
-            // Poll for thumbnail completion
             let thumbnailUrl = null;
-            let thumbnailAttempts = 0;
-            const maxThumbnailAttempts = 30;
 
-            while (!thumbnailUrl && thumbnailAttempts < maxThumbnailAttempts) {
-                thumbnailAttempts++;
-                await new Promise(resolve => setTimeout(resolve, 2000));
+            if (useLeonardo) {
+                // Generate thumbnail using Leonardo.ai API
+                const thumbnailRequestBody = {
+                    prompt: scenes.thumbnailImagePrompt,
+                    modelId: selectedLeonardoModel,
+                    width: 1024,
+                    height: 576,  // 16:9 aspect ratio for YouTube thumbnails
+                    num_images: 1,
+                    alchemy: leonardoAlchemyEnabled ? true : false
+                };
 
-                const thumbnailPollResponse = await fetch(`https://cloud.leonardo.ai/api/rest/v1/generations/${thumbnailGenerationId}`, {
+                // For Lucid Realism model, add required parameters
+                if (selectedLeonardoModel === '05ce0082-2d80-4a2d-8653-4d1c85e2418e') {
+                    thumbnailRequestBody.contrast = 3.5;
+                    thumbnailRequestBody.styleUUID = '111dc692-d470-4eec-b791-3475abac4c46';
+                    thumbnailRequestBody.ultra = false;
+                } else {
+                    // For other models, use presetStyle
+                    thumbnailRequestBody.presetStyle = 'CINEMATIC';
+                }
+
+                const thumbnailResponse = await fetch('https://cloud.leonardo.ai/api/rest/v1/generations', {
+                    method: 'POST',
                     headers: {
                         'accept': 'application/json',
+                        'content-type': 'application/json',
                         'authorization': `Bearer ${leonardoApiKey}`
-                    }
+                    },
+                    body: JSON.stringify(thumbnailRequestBody)
                 });
 
-                if (thumbnailPollResponse.ok) {
-                    const thumbnailPollData = await thumbnailPollResponse.json();
-                    if (thumbnailPollData.generations_by_pk &&
-                        thumbnailPollData.generations_by_pk.status === 'COMPLETE' &&
-                        thumbnailPollData.generations_by_pk.generated_images &&
-                        thumbnailPollData.generations_by_pk.generated_images.length > 0) {
-                        thumbnailUrl = thumbnailPollData.generations_by_pk.generated_images[0].url;
+                if (!thumbnailResponse.ok) {
+                    const errorText = await thumbnailResponse.text();
+                    console.error('Thumbnail API Error Response:', errorText);
+                    throw new Error(`Thumbnail API error: ${thumbnailResponse.status} - ${errorText}`);
+                }
+
+                const thumbnailResult = await thumbnailResponse.json();
+                const thumbnailGenerationId = thumbnailResult.sdGenerationJob.generationId;
+
+                // Poll for thumbnail completion
+                let thumbnailAttempts = 0;
+                const maxThumbnailAttempts = 30;
+
+                while (!thumbnailUrl && thumbnailAttempts < maxThumbnailAttempts) {
+                    thumbnailAttempts++;
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+
+                    const thumbnailPollResponse = await fetch(`https://cloud.leonardo.ai/api/rest/v1/generations/${thumbnailGenerationId}`, {
+                        headers: {
+                            'accept': 'application/json',
+                            'authorization': `Bearer ${leonardoApiKey}`
+                        }
+                    });
+
+                    if (thumbnailPollResponse.ok) {
+                        const thumbnailPollData = await thumbnailPollResponse.json();
+                        if (thumbnailPollData.generations_by_pk &&
+                            thumbnailPollData.generations_by_pk.status === 'COMPLETE' &&
+                            thumbnailPollData.generations_by_pk.generated_images &&
+                            thumbnailPollData.generations_by_pk.generated_images.length > 0) {
+                            thumbnailUrl = thumbnailPollData.generations_by_pk.generated_images[0].url;
+                        }
                     }
                 }
+
+                if (!thumbnailUrl) {
+                    throw new Error('Thumbnail generation timed out');
+                }
+            } else {
+                // Use Pollinations AI (free) for thumbnail
+                console.log(`Using Pollinations AI for thumbnail`);
+                const encodedPrompt = encodeURIComponent(scenes.thumbnailImagePrompt);
+                thumbnailUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=576&nologo=true`;
             }
 
             if (!thumbnailUrl) {
-                throw new Error('Thumbnail generation timed out');
+                throw new Error('Thumbnail generation failed');
             }
 
             console.log(`✅ Thumbnail generated successfully for ${processingItem.topic}`);
