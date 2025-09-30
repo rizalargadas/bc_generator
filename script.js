@@ -201,6 +201,9 @@ document.addEventListener('DOMContentLoaded', function() {
         return id;
     }
 
+    // Expose generateTopicId to window for use by moveTopicsToPending
+    window.generateTopicId = generateTopicId;
+
     // Convert Long script to Shorts script
     async function convertLongToShorts(longScriptData, topic, info) {
         if (!openaiApiKey) {
