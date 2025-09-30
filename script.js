@@ -2354,6 +2354,12 @@ Format your response as JSON with this exact structure:
                     <span class="status failed">${item.thumbnail}</span>
                     <button class="btn-mini" onclick="retryThumbnailGeneration(${index})" title="Retry thumbnail generation">Retry</button>
                 `;
+            } else if (item.thumbnail === 'done') {
+                // Show regenerate button for completed thumbnails
+                thumbnailTd.innerHTML = `
+                    <span class="status ${getStatusClass(item.thumbnail)}">${item.thumbnail}</span>
+                    <button class="btn-mini" onclick="regenerateThumbnail(${index})" title="Regenerate thumbnail">🔄</button>
+                `;
             } else if (item.thumbnail) {
                 // Show status from processing item
                 thumbnailTd.innerHTML = `<span class="status ${getStatusClass(item.thumbnail)}">${item.thumbnail}</span>`;
@@ -3615,6 +3621,29 @@ Format your response as JSON with this exact structure:
         }
     };
 
+    // Regenerate thumbnail (for when user doesn't like the current one)
+    window.regenerateThumbnail = async function(index) {
+        if (index >= 0 && index < processingData.length) {
+            const item = processingData[index];
+            console.log(`🔄 Regenerating thumbnail for ${item.topic}`);
+
+            // Reset thumbnail status to trigger regeneration
+            item.thumbnail = 'generating...';
+            populateProcessingTable();
+            saveToLocalStorage();
+
+            try {
+                await generateThumbnail(item);
+                console.log(`✅ Thumbnail regenerated successfully for ${item.topic}`);
+            } catch (error) {
+                console.error(`❌ Failed to regenerate thumbnail for ${item.topic}:`, error);
+                item.thumbnail = 'failed';
+                populateProcessingTable();
+                saveToLocalStorage();
+            }
+        }
+    };
+
     // Retry failed video generation
     window.retryVideoGeneration = async function(index) {
         if (index >= 0 && index < processingData.length) {
@@ -3637,6 +3666,7 @@ Format your response as JSON with this exact structure:
         const { ipcRenderer } = require('electron');
         const itemsToGenerateImages = [];
         const itemsToGenerateVoice = [];
+        const itemsToGenerateThumbnail = [];
         let totalItemsChecked = 0;
         let itemsWithIssues = 0;
 
@@ -3837,6 +3867,14 @@ Format your response as JSON with this exact structure:
                         if (item.thumbnail !== 'generating...' && item.thumbnail !== 'failed') {
                             item.thumbnail = 'waiting...';
                             console.log(`⏳ ${item.topic}: Thumbnail missing`);
+
+                            // Mark for auto-generation if script and images are ready
+                            if (status.hasScript && status.imageCount > 0) {
+                                if (!itemsToGenerateThumbnail.includes(item)) {
+                                    itemsToGenerateThumbnail.push(item);
+                                    console.log(`🎯 ${item.topic}: Marked for auto thumbnail generation (script and images ready)`);
+                                }
+                            }
                         }
                     }
 
@@ -3871,6 +3909,7 @@ Format your response as JSON with this exact structure:
         console.log(`⚠️ Items with issues: ${itemsWithIssues}`);
         console.log(`🎯 Items marked for auto image generation: ${itemsToGenerateImages.length}`);
         console.log(`🎤 Items marked for auto voice generation: ${itemsToGenerateVoice.length}`);
+        console.log(`📸 Items marked for auto thumbnail generation: ${itemsToGenerateThumbnail.length}`);
 
         const completedItems = processingData.filter(item =>
             item.script === 'done' &&
@@ -3926,6 +3965,26 @@ Format your response as JSON with this exact structure:
             }
         } else {
             console.log(`✨ No auto voice generation needed`);
+        }
+
+        // Auto-generate thumbnails for items that have scripts and images but no thumbnail
+        if (itemsToGenerateThumbnail.length > 0) {
+            console.log(`🚀 Starting auto thumbnail generation for ${itemsToGenerateThumbnail.length} items`);
+            console.log(`📸 Thumbnail generation using ${leonardoEnabled ? 'Leonardo.ai' : 'Pollinations AI'}`);
+
+            for (const item of itemsToGenerateThumbnail) {
+                console.log(`🖼️ Auto-generating thumbnail for ${item.topic}`);
+                try {
+                    await generateThumbnail(item);
+                } catch (thumbnailError) {
+                    console.error(`❌ Auto thumbnail generation failed for ${item.topic}:`, thumbnailError);
+                    item.thumbnail = 'failed';
+                    populateProcessingTable();
+                    saveToLocalStorage();
+                }
+            }
+        } else {
+            console.log(`✨ No auto thumbnail generation needed`);
         }
 
         // Check for any Long videos that completed images and trigger Shorts copying
