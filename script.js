@@ -377,10 +377,10 @@ Return ONLY a JSON object with this EXACT structure:
         }
 
         const isShort = ytType === 'Shorts';
-        const targetWords = isShort ? 400 : longScriptWordCount;  // Use configurable word count for Long videos
-        const sceneCount = isShort ? 4 : 10;
+        const targetWords = isShort ? 400 : scriptWordCount;  // Use configurable word count for Long videos
+        const sceneCount = isShort ? 4 : scriptSceneCount;  // Use configurable scene count for Long videos
 
-        console.log(`📝 Script generation for ${ytType}: Target words = ${targetWords} (configured: ${longScriptWordCount})`);
+        console.log(`📝 Script generation for ${ytType}: Target words = ${targetWords}, scenes = ${sceneCount}`);
 
         const prompt = `You are an award-winning narrative architect and YouTube strategy expert specializing in faceless, AI-narrated, content (True Crime, Dark History, Mysteries, Creepy Happenings) that maximizes audience retention and growth. You craft meticulously-researched, vividly-told scripts that create an eerie yet factual journey into humanity's darkest chapters.
 
