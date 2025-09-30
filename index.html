@@ -316,15 +316,25 @@
                     <!-- Leonardo.ai Section -->
                     <div class="api-section">
                         <div class="api-section-header">
-                            <h3>🎨 Leonardo.ai</h3>
-                            <p class="api-description">For photorealistic AI image generation with 16:9 aspect ratio</p>
+                            <h3>🎨 Image Generation</h3>
+                            <p class="api-description">Configure image generation service (Leonardo.ai or free Pollinations AI)</p>
                         </div>
                         <div class="api-section-content">
                             <div class="form-group">
-                                <label for="leonardo-api-key">API Key:</label>
-                                <input type="password" id="leonardo-api-key" placeholder="Enter your Leonardo.ai API key" class="api-input">
-                                <button class="btn-secondary" id="save-leonardo-key">Save Key</button>
+                                <label>
+                                    <input type="checkbox" id="leonardo-enabled-toggle" style="margin-right: 8px;">
+                                    Use Leonardo.ai (Premium - requires API key)
+                                </label>
+                                <p class="help-text" style="margin-top: 5px; font-size: 0.9em; color: #666;">
+                                    When disabled, the app uses Pollinations AI - a free, high-quality image generation service with no API key required.
+                                </p>
                             </div>
+                            <div id="leonardo-config" style="display: none;">
+                                <div class="form-group">
+                                    <label for="leonardo-api-key">Leonardo.ai API Key:</label>
+                                    <input type="password" id="leonardo-api-key" placeholder="Enter your Leonardo.ai API key" class="api-input">
+                                    <button class="btn-secondary" id="save-leonardo-key">Save Key</button>
+                                </div>
                             <div class="form-group">
                                 <label for="leonardo-model-select">Model:</label>
                                 <select id="leonardo-model-select" class="api-input">
@@ -337,23 +347,38 @@
                                     <option value="ac614f96-1082-45bf-be9d-757f2d31c174">DreamShaper v7</option>
                                 </select>
                             </div>
-                            <div class="form-group">
-                                <label>
-                                    <input type="checkbox" id="leonardo-alchemy-toggle" style="margin-right: 8px;">
-                                    Enable Alchemy (Enhanced Quality - Costs 25-50% more credits)
-                                </label>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="leonardo-alchemy-toggle" style="margin-right: 8px;">
+                                        Enable Alchemy (Enhanced Quality - Costs 25-50% more credits)
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label for="test-prompt-input">Test Leonardo.ai Generation:</label>
+                                    <input type="text" id="test-prompt-input" placeholder="Enter a prompt to test image generation..." class="api-input">
+                                    <button class="btn-primary" id="test-generate-btn" style="display: none;">Generate Test Image</button>
+                                </div>
+                                <div id="test-image-result" style="margin-top: 10px; display: none;">
+                                    <div id="test-status" style="margin-bottom: 10px;"></div>
+                                    <img id="test-image" style="max-width: 100%; height: auto; border-radius: 4px; border: 1px solid #ddd;">
+                                </div>
+                                <div class="api-status" id="leonardo-status">
+                                    <span class="status-text">No Leonardo.ai API key configured</span>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label for="test-prompt-input">Test Image Generation:</label>
-                                <input type="text" id="test-prompt-input" placeholder="Enter a prompt to test image generation..." class="api-input">
-                                <button class="btn-primary" id="test-generate-btn" style="display: none;">Generate Test Image</button>
-                            </div>
-                            <div id="test-image-result" style="margin-top: 10px; display: none;">
-                                <div id="test-status" style="margin-bottom: 10px;"></div>
-                                <img id="test-image" style="max-width: 100%; height: auto; border-radius: 4px; border: 1px solid #ddd;">
-                            </div>
-                            <div class="api-status" id="leonardo-status">
-                                <span class="status-text">No Leonardo.ai API key configured</span>
+                            <div id="pollinations-info" style="margin-top: 15px;">
+                                <div class="api-status" style="background: #e8f5e9; border-color: #4caf50;">
+                                    <span class="status-text" style="color: #2e7d32;">✅ Using Pollinations AI - Free image generation with no API key required</span>
+                                </div>
+                                <div class="form-group" style="margin-top: 10px;">
+                                    <label for="test-pollinations-input">Test Pollinations AI:</label>
+                                    <input type="text" id="test-pollinations-input" placeholder="Enter a prompt to test free image generation..." class="api-input">
+                                    <button class="btn-primary" id="test-pollinations-btn">Generate Test Image</button>
+                                </div>
+                                <div id="pollinations-test-result" style="margin-top: 10px; display: none;">
+                                    <div id="pollinations-test-status" style="margin-bottom: 10px;"></div>
+                                    <img id="pollinations-test-image" style="max-width: 100%; height: auto; border-radius: 4px; border: 1px solid #ddd;">
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -459,13 +484,22 @@
                             </div>
 
                             <div class="help-section-item">
-                                <h4>🎨 Leonardo.ai API Key:</h4>
+                                <h4>🎨 Image Generation (Leonardo.ai / Pollinations AI):</h4>
+                                <p><strong>Free Option - Pollinations AI (Default):</strong></p>
+                                <ul>
+                                    <li>Completely free with no API key required</li>
+                                    <li>High-quality image generation using Stable Diffusion</li>
+                                    <li>Simply leave the Leonardo.ai toggle OFF to use this free service</li>
+                                    <li>Visit <a href="https://pollinations.ai" target="_blank">Pollinations.ai</a> to learn more</li>
+                                </ul>
+                                <p style="margin-top: 10px;"><strong>Premium Option - Leonardo.ai:</strong></p>
                                 <ol>
+                                    <li>Enable the "Use Leonardo.ai" toggle in settings</li>
                                     <li>Visit <a href="https://app.leonardo.ai" target="_blank">Leonardo.ai Dashboard</a></li>
                                     <li>Sign in to your Leonardo.ai account</li>
                                     <li>Go to <a href="https://app.leonardo.ai/api" target="_blank">API Settings</a></li>
                                     <li>Generate a new API key and copy it</li>
-                                    <li>This key is used for high-quality, photorealistic image generation</li>
+                                    <li>Premium service offers more control and specialized models</li>
                                 </ol>
                             </div>
 

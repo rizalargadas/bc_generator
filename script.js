@@ -30,6 +30,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const saveLateKeyBtn = document.getElementById('save-late-key');
     const testLateKeyBtn = document.getElementById('test-late-key');
     const lateStatus = document.getElementById('late-status');
+    const leonardoEnabledToggle = document.getElementById('leonardo-enabled-toggle');
+    const leonardoConfig = document.getElementById('leonardo-config');
+    const pollinationsInfo = document.getElementById('pollinations-info');
     const leonardoApiKeyInput = document.getElementById('leonardo-api-key');
     const saveLeonardoKeyBtn = document.getElementById('save-leonardo-key');
     const leonardoModelSelect = document.getElementById('leonardo-model-select');
@@ -39,6 +42,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const testImageResult = document.getElementById('test-image-result');
     const testStatus = document.getElementById('test-status');
     const testImage = document.getElementById('test-image');
+    const testPollinationsInput = document.getElementById('test-pollinations-input');
+    const testPollinationsBtn = document.getElementById('test-pollinations-btn');
+    const pollinationsTestResult = document.getElementById('pollinations-test-result');
+    const pollinationsTestStatus = document.getElementById('pollinations-test-status');
+    const pollinationsTestImage = document.getElementById('pollinations-test-image');
     const testVoiceInput = document.getElementById('test-voice-input');
     const testVoiceBtn = document.getElementById('test-voice-btn');
     const testVoiceResult = document.getElementById('test-voice-result');
@@ -95,6 +103,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let elevenlabsVoiceId = '';
     let lateApiKey = '';
     let leonardoApiKey = '';
+    let leonardoEnabled = false; // Toggle for Leonardo.ai vs Pollinations AI
     let selectedLeonardoModel = 'de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3'; // Default to Leonardo Phoenix 1.0
     let leonardoAlchemyEnabled = false; // Default to disabled to save credits
     let longScriptWordCount = 6000; // Default word count for Long videos
@@ -1225,9 +1234,14 @@ Format your response as JSON with this exact structure:
         }
 
         // For Long videos, continue with regular image generation
-        if (!leonardoApiKey) {
-            throw new Error('Leonardo.ai API key not configured');
+        // Check if Leonardo is enabled and has API key, otherwise use Pollinations
+        const useLeonardo = leonardoEnabled && leonardoApiKey;
+
+        if (leonardoEnabled && !leonardoApiKey) {
+            throw new Error('Leonardo.ai is enabled but API key not configured. Please add your API key or disable Leonardo.ai to use free Pollinations AI.');
         }
+
+        console.log(`🎨 Using ${useLeonardo ? 'Leonardo.ai' : 'Pollinations AI'} for image generation`);
 
         try {
             // Read the CSV file
@@ -1324,74 +1338,82 @@ Format your response as JSON with this exact structure:
                         }
 
                         try {
-                            // Call Leonardo.ai API for photorealistic images
-                            const requestBody = {
-                                prompt: promptToUse,
-                                modelId: selectedLeonardoModel,
-                                width: 1024,
-                                height: 576,  // 16:9 aspect ratio (1024x576)
-                                num_images: 1,
-                                alchemy: leonardoAlchemyEnabled ? true : false
-                            };
-
-                            // For Lucid Realism model, add required parameters
-                            if (selectedLeonardoModel === '05ce0082-2d80-4a2d-8653-4d1c85e2418e') {
-                                requestBody.contrast = 3.5;
-                                requestBody.styleUUID = '111dc692-d470-4eec-b791-3475abac4c46';
-                                requestBody.ultra = false;
-                            } else {
-                                // For other models, use presetStyle
-                                requestBody.presetStyle = 'CINEMATIC';
-                            }
-
-                            const response = await fetch('https://cloud.leonardo.ai/api/rest/v1/generations', {
-                                method: 'POST',
-                                headers: {
-                                    'accept': 'application/json',
-                                    'content-type': 'application/json',
-                                    'authorization': `Bearer ${leonardoApiKey}`
-                                },
-                                body: JSON.stringify(requestBody)
-                            });
-
-                            if (!response.ok) {
-                                const errorText = await response.text();
-                                let errorMessage = `Leonardo API error: ${response.status}`;
-                                lastError = errorMessage;
-                                throw new Error(errorMessage);
-                            }
-
-                            const data = await response.json();
-                            const generationId = data.sdGenerationJob.generationId;
-
-                            // Poll for completion (Leonardo requires polling)
                             let imageUrl = null;
-                            let attempts = 0;
-                            const maxAttempts = 30; // Wait up to 60 seconds
 
-                            while (!imageUrl && attempts < maxAttempts) {
-                                attempts++;
-                                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+                            if (useLeonardo) {
+                                // Call Leonardo.ai API for photorealistic images
+                                const requestBody = {
+                                    prompt: promptToUse,
+                                    modelId: selectedLeonardoModel,
+                                    width: 1024,
+                                    height: 576,  // 16:9 aspect ratio (1024x576)
+                                    num_images: 1,
+                                    alchemy: leonardoAlchemyEnabled ? true : false
+                                };
 
-                                const pollResponse = await fetch(`https://cloud.leonardo.ai/api/rest/v1/generations/${generationId}`, {
+                                // For Lucid Realism model, add required parameters
+                                if (selectedLeonardoModel === '05ce0082-2d80-4a2d-8653-4d1c85e2418e') {
+                                    requestBody.contrast = 3.5;
+                                    requestBody.styleUUID = '111dc692-d470-4eec-b791-3475abac4c46';
+                                    requestBody.ultra = false;
+                                } else {
+                                    // For other models, use presetStyle
+                                    requestBody.presetStyle = 'CINEMATIC';
+                                }
+
+                                const response = await fetch('https://cloud.leonardo.ai/api/rest/v1/generations', {
+                                    method: 'POST',
                                     headers: {
                                         'accept': 'application/json',
+                                        'content-type': 'application/json',
                                         'authorization': `Bearer ${leonardoApiKey}`
-                                    }
+                                    },
+                                    body: JSON.stringify(requestBody)
                                 });
 
-                                if (pollResponse.ok) {
-                                    const pollData = await pollResponse.json();
-                                    if (pollData.generations_by_pk && pollData.generations_by_pk.status === 'COMPLETE') {
-                                        if (pollData.generations_by_pk.generated_images && pollData.generations_by_pk.generated_images.length > 0) {
-                                            imageUrl = pollData.generations_by_pk.generated_images[0].url;
+                                if (!response.ok) {
+                                    const errorText = await response.text();
+                                    let errorMessage = `Leonardo API error: ${response.status}`;
+                                    lastError = errorMessage;
+                                    throw new Error(errorMessage);
+                                }
+
+                                const data = await response.json();
+                                const generationId = data.sdGenerationJob.generationId;
+
+                                // Poll for completion (Leonardo requires polling)
+                                let attempts = 0;
+                                const maxAttempts = 30; // Wait up to 60 seconds
+
+                                while (!imageUrl && attempts < maxAttempts) {
+                                    attempts++;
+                                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+
+                                    const pollResponse = await fetch(`https://cloud.leonardo.ai/api/rest/v1/generations/${generationId}`, {
+                                        headers: {
+                                            'accept': 'application/json',
+                                            'authorization': `Bearer ${leonardoApiKey}`
+                                        }
+                                    });
+
+                                    if (pollResponse.ok) {
+                                        const pollData = await pollResponse.json();
+                                        if (pollData.generations_by_pk && pollData.generations_by_pk.status === 'COMPLETE') {
+                                            if (pollData.generations_by_pk.generated_images && pollData.generations_by_pk.generated_images.length > 0) {
+                                                imageUrl = pollData.generations_by_pk.generated_images[0].url;
+                                            }
                                         }
                                     }
                                 }
-                            }
 
-                            if (!imageUrl) {
-                                throw new Error('Leonardo generation timed out or failed');
+                                if (!imageUrl) {
+                                    throw new Error('Leonardo generation timed out or failed');
+                                }
+                            } else {
+                                // Use Pollinations AI (free)
+                                console.log(`Using Pollinations AI for scene ${scene.sceneNumber}`);
+                                const encodedPrompt = encodeURIComponent(promptToUse);
+                                imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=576&nologo=true`;
                             }
 
                             // Save the image
@@ -1742,6 +1764,7 @@ Format your response as JSON with this exact structure:
             localStorage.setItem('bc_generator_openai_key', openaiApiKey);
             localStorage.setItem('bc_generator_elevenlabs_voice_id', elevenlabsVoiceId);
             localStorage.setItem('bc_generator_late_key', lateApiKey);
+            localStorage.setItem('bc_generator_leonardo_enabled', leonardoEnabled);
             localStorage.setItem('bc_generator_leonardo_key', leonardoApiKey);
             localStorage.setItem('bc_generator_leonardo_model', selectedLeonardoModel);
             localStorage.setItem('bc_generator_leonardo_alchemy', leonardoAlchemyEnabled);
@@ -1828,6 +1851,16 @@ Format your response as JSON with this exact structure:
                 lateApiKey = savedLateKey;
                 lateApiKeyInput.value = savedLateKey;
                 updateLateStatus('saved');
+            }
+
+            const savedLeonardoEnabled = localStorage.getItem('bc_generator_leonardo_enabled');
+            if (savedLeonardoEnabled !== null) {
+                leonardoEnabled = savedLeonardoEnabled === 'true';
+                leonardoEnabledToggle.checked = leonardoEnabled;
+                updateLeonardoUI();
+            } else {
+                // Default to Pollinations AI (Leonardo disabled)
+                updateLeonardoUI();
             }
 
             const savedLeonardoKey = localStorage.getItem('bc_generator_leonardo_key');
@@ -2013,6 +2046,18 @@ Format your response as JSON with this exact structure:
                 statusText.textContent = 'No Late API key configured';
                 statusText.style.color = '#666666';
                 testLateKeyBtn.style.display = 'none';
+        }
+    }
+
+    function updateLeonardoUI() {
+        if (leonardoEnabled) {
+            // Show Leonardo config, hide Pollinations info
+            leonardoConfig.style.display = 'block';
+            pollinationsInfo.style.display = 'none';
+        } else {
+            // Hide Leonardo config, show Pollinations info
+            leonardoConfig.style.display = 'none';
+            pollinationsInfo.style.display = 'block';
         }
     }
 
@@ -3137,6 +3182,14 @@ Format your response as JSON with this exact structure:
         }
     });
 
+    // Leonardo enabled toggle
+    leonardoEnabledToggle.addEventListener('change', function() {
+        leonardoEnabled = leonardoEnabledToggle.checked;
+        updateLeonardoUI();
+        localStorage.setItem('bc_generator_leonardo_enabled', leonardoEnabled);
+        saveToLocalStorage();
+    });
+
     // Leonardo API Management
     saveLeonardoKeyBtn.addEventListener('click', function() {
         const apiKey = leonardoApiKeyInput.value.trim();
@@ -3317,6 +3370,64 @@ Format your response as JSON with this exact structure:
             testGenerateBtn.textContent = 'Generate Test Image';
         }
     });
+
+    // Test Pollinations image generation
+    async function testPollinationsGeneration() {
+        const prompt = testPollinationsInput.value.trim();
+        if (!prompt) {
+            return;
+        }
+
+        pollinationsTestStatus.textContent = 'Generating test image with Pollinations AI...';
+        pollinationsTestStatus.style.color = '#ff8800';
+        pollinationsTestResult.style.display = 'block';
+        pollinationsTestImage.style.display = 'none';
+        testPollinationsBtn.disabled = true;
+        testPollinationsBtn.textContent = 'Generating...';
+
+        try {
+            // Generate Pollinations URL
+            const encodedPrompt = encodeURIComponent(prompt);
+            const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=576&nologo=true`;
+
+            console.log('Pollinations URL:', imageUrl);
+
+            // Fetch the image
+            const imageResponse = await fetch(imageUrl);
+            if (!imageResponse.ok) {
+                throw new Error(`Failed to generate image: ${imageResponse.status}`);
+            }
+
+            const imageBlob = await imageResponse.blob();
+            const objectUrl = URL.createObjectURL(imageBlob);
+
+            pollinationsTestImage.onload = function() {
+                console.log('Pollinations image loaded successfully');
+                pollinationsTestStatus.textContent = 'Image generated successfully with Pollinations AI!';
+                pollinationsTestStatus.style.color = '#008000';
+                URL.revokeObjectURL(objectUrl);
+            };
+
+            pollinationsTestImage.onerror = function() {
+                console.error('Failed to display Pollinations image');
+                pollinationsTestStatus.textContent = 'Error: Failed to display image';
+                pollinationsTestStatus.style.color = '#cc0000';
+                URL.revokeObjectURL(objectUrl);
+            };
+
+            pollinationsTestImage.src = objectUrl;
+            pollinationsTestImage.style.display = 'block';
+
+        } catch (error) {
+            console.error('Pollinations test generation error:', error);
+            pollinationsTestStatus.textContent = `Error: ${error.message}`;
+            pollinationsTestStatus.style.color = '#cc0000';
+            pollinationsTestImage.style.display = 'none';
+        } finally {
+            testPollinationsBtn.disabled = false;
+            testPollinationsBtn.textContent = 'Generate Test Image';
+        }
+    }
 
     // Script Configuration Management
     saveScriptConfigBtn.addEventListener('click', function() {

@@ -11,7 +11,11 @@
       "Bash(npm start)",
       "Bash(git reset:*)",
       "Bash(git rm:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(find:*)",
+      "Bash(node:*)",
+      "Bash(del remove_columns.js)",
+      "Bash(pip show:*)"
     ],
     "deny": [],
     "ask": []
