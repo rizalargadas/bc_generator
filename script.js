@@ -1,3 +1,14 @@
+// Helper function to generate hash code from string (for deterministic seeds)
+String.prototype.hashCode = function() {
+    let hash = 0;
+    for (let i = 0; i < this.length; i++) {
+        const char = this.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash);
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     const fileInput = document.getElementById('csvFile');
     const fileInfo = document.getElementById('fileInfo');
@@ -980,33 +991,14 @@ Format your response as JSON with this exact structure:
                 return;
             }
 
-            console.log(`📝 Original thumbnail prompt: ${scenes.thumbnailImagePrompt.substring(0, 100)}...`);
-
-            // Add variation to the prompt if regenerating
-            let thumbnailPrompt = scenes.thumbnailImagePrompt;
-            if (isRegeneration) {
-                const variations = [
-                    ', different angle, alternative perspective',
-                    ', alternative composition, unique viewpoint',
-                    ', different lighting, varied atmosphere',
-                    ', alternative color scheme, different mood',
-                    ', different time of day, varied ambiance',
-                    ', alternative framing, different focus point',
-                    ', varied color palette, different tone',
-                    ', different artistic interpretation, alternative style'
-                ];
-                const randomVariation = variations[Math.floor(Math.random() * variations.length)];
-                thumbnailPrompt = scenes.thumbnailImagePrompt + randomVariation;
-                console.log(`🎲 Adding variation: "${randomVariation}"`);
-                console.log(`📝 Modified prompt: ${thumbnailPrompt.substring(0, 120)}...`);
-            }
+            console.log(`📝 Using thumbnail prompt: ${scenes.thumbnailImagePrompt.substring(0, 100)}...`);
 
             let thumbnailUrl = null;
 
             if (useLeonardo) {
                 // Generate thumbnail using Leonardo.ai API
                 const thumbnailRequestBody = {
-                    prompt: thumbnailPrompt,
+                    prompt: scenes.thumbnailImagePrompt,
                     modelId: selectedLeonardoModel,
                     width: 1024,
                     height: 576,  // 16:9 aspect ratio for YouTube thumbnails
@@ -1075,8 +1067,13 @@ Format your response as JSON with this exact structure:
             } else {
                 // Use Pollinations AI (free) for thumbnail
                 console.log(`Using Pollinations AI for thumbnail`);
-                const encodedPrompt = encodeURIComponent(thumbnailPrompt);
-                thumbnailUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=576&nologo=true`;
+                const encodedPrompt = encodeURIComponent(scenes.thumbnailImagePrompt);
+                // Add seed parameter to force new generation (especially important for regeneration)
+                const seed = isRegeneration ? Date.now() : Math.floor(Math.random() * 1000000);
+                thumbnailUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=576&nologo=true&seed=${seed}`;
+                if (isRegeneration) {
+                    console.log(`🔄 Using seed ${seed} to force new generation`);
+                }
             }
 
             if (!thumbnailUrl) {
@@ -1445,7 +1442,9 @@ Format your response as JSON with this exact structure:
                                 // Use Pollinations AI (free)
                                 console.log(`Using Pollinations AI for scene ${scene.sceneNumber}`);
                                 const encodedPrompt = encodeURIComponent(promptToUse);
-                                imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=576&nologo=true`;
+                                // Use a deterministic seed based on scene number for consistency
+                                const seed = processingItem.id.hashCode() + scene.sceneNumber;
+                                imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=576&nologo=true&seed=${seed}`;
                             }
 
                             // Save the image
