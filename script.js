@@ -11,6 +11,13 @@ String.prototype.hashCode = function() {
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 App started - DOMContentLoaded event fired');
+
+    // Add global error handler to catch any initialization errors
+    window.addEventListener('error', function(e) {
+        console.error('❌ Global error caught:', e.error);
+        console.error('Error at:', e.filename, 'line', e.lineno);
+    });
+
     const fileInput = document.getElementById('csvFile');
     const fileInfo = document.getElementById('fileInfo');
     const tabButtons = document.querySelectorAll('.tab-btn');
@@ -4209,7 +4216,13 @@ Format your response as JSON with this exact structure:
 
     // Load data from localStorage on page load
     console.log('🔄 About to call loadFromLocalStorage()...');
-    loadFromLocalStorage();
+    try {
+        loadFromLocalStorage();
+        console.log('🔄 loadFromLocalStorage() completed successfully');
+    } catch (e) {
+        console.error('❌ Error calling loadFromLocalStorage():', e);
+        console.error('Stack trace:', e.stack);
+    }
     console.log('🔄 About to call updateSelectionCount()...');
     updateSelectionCount();
     updateProcessingSelectionCount();
