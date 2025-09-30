@@ -707,7 +707,8 @@ Format your response as JSON with this exact structure:
 
             console.log(`📄 CSV file read successfully, length: ${csvResult.content.length} characters`);
             const scenes = parseCSVContent(csvResult.content);
-            console.log(`📝 Found ${scenes.length} scenes to generate voice for`);
+            const totalScenes = scenes.actualSceneCount || scenes.length;
+            console.log(`📝 Found ${totalScenes} scenes to generate voice for (${scenes.length} rows in CSV)`);
 
             // Log first scene as example
             if (scenes.length > 0) {
@@ -828,16 +829,19 @@ Format your response as JSON with this exact structure:
                 }
             }
 
-            console.log(`🎤 Voice generation completed: ${successCount}/${scenes.length} successful`);
+            console.log(`🎤 Voice generation completed: ${successCount}/${totalScenes} successful`);
 
             // Update status - only mark as "done" if all scenes have audio
-            if (failedScenes.length === 0 && successCount === scenes.length) {
+            if (failedScenes.length === 0 && successCount === totalScenes) {
                 processingItem.voiceOvers = 'done';
-                console.log(`✅ All ${successCount}/${scenes.length} voice overs generated successfully for ${processingItem.topic}`);
+                console.log(`✅ All ${successCount}/${totalScenes} voice overs generated successfully for ${processingItem.topic}`);
             } else {
-                processingItem.voiceOvers = `${successCount}/${scenes.length}`;
-                console.log(`⚠️ Voice generation incomplete: ${successCount}/${scenes.length} successful, ${failedScenes.length} failed: [${failedScenes.join(', ')}]`);
+                processingItem.voiceOvers = `${successCount}/${totalScenes}`;
+                console.log(`⚠️ Voice generation incomplete: ${successCount}/${totalScenes} successful, ${failedScenes.length} failed: [${failedScenes.join(', ')}]`);
             }
+
+            // Store the actual scene count for future reference
+            processingItem.totalScenes = totalScenes;
 
             populateProcessingTable();
             saveToLocalStorage();
@@ -856,6 +860,7 @@ Format your response as JSON with this exact structure:
         const lines = csvContent.split('\n').filter(line => line.trim());
         const scenes = [];
         let thumbnailImagePrompt = null;
+        let maxSceneNumber = 0;
 
         // Parse header row to find column indices
         const headerParts = lines.length > 0 ? parseCSVLine(lines[0]) : [];
@@ -872,16 +877,25 @@ Format your response as JSON with this exact structure:
                     thumbnailImagePrompt = parts[thumbnailPromptIndex].trim();
                 }
 
+                const sceneNumber = parts[0].trim();
+                const sceneNum = parseInt(sceneNumber);
+
+                // Track the highest scene number to get actual scene count
+                if (!isNaN(sceneNum) && sceneNum > maxSceneNumber) {
+                    maxSceneNumber = sceneNum;
+                }
+
                 scenes.push({
-                    sceneNumber: parts[0],
+                    sceneNumber: sceneNumber,
                     script: parts[1],
                     imagePrompt: parts[2]
                 });
             }
         }
 
-        // Add thumbnail prompt to the result
+        // Add thumbnail prompt and actual scene count to the result
         scenes.thumbnailImagePrompt = thumbnailImagePrompt;
+        scenes.actualSceneCount = maxSceneNumber; // The actual number of scenes based on Scene # column
         return scenes;
     }
 
@@ -1472,7 +1486,7 @@ Format your response as JSON with this exact structure:
             }
 
             processingItem.imageCount = successCount;
-            processingItem.totalScenes = scenes.length;
+            processingItem.totalScenes = scenes.actualSceneCount || scenes.length;
             populateProcessingTable();
             saveToLocalStorage();
 
@@ -1604,8 +1618,12 @@ Format your response as JSON with this exact structure:
                 processingItem.scriptFile = result.filename;
                 processingItem.outputDir = result.outputDir;
 
-                // Store total scenes for tracking
-                processingItem.totalScenes = scriptData.scenes ? scriptData.scenes.length : 0;
+                // Store total scenes for tracking - use actualSceneCount if available
+                if (scriptData.scenes) {
+                    processingItem.totalScenes = scriptData.scenes.actualSceneCount || scriptData.scenes.length;
+                } else {
+                    processingItem.totalScenes = 0;
+                }
 
                 populateProcessingTable();
                 saveToLocalStorage();
@@ -3625,7 +3643,8 @@ Format your response as JSON with this exact structure:
                             });
                             if (csvResult.success) {
                                 const scenes = parseCSVContent(csvResult.content);
-                                item.totalScenes = scenes.length;
+                                item.totalScenes = scenes.actualSceneCount || scenes.length;
+                                console.log(`📊 ${item.topic}: Set totalScenes to ${item.totalScenes} (actualSceneCount: ${scenes.actualSceneCount}, rows: ${scenes.length})`);
                             }
                         } catch (error) {
                             console.error('Error reading CSV for scene count:', error);
