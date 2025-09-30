@@ -1057,6 +1057,43 @@ Format your response as JSON with this exact structure:
         }
     }
 
+    // Check and auto-start Shorts image copying when Long is done
+    async function checkAndStartShortsImageCopy(longItem) {
+        if (!longItem || longItem.ytType !== 'Long') return;
+        if (longItem.image !== 'Done') return;
+
+        // Find corresponding Shorts item
+        const baseId = longItem.id.replace('_L', '');
+        const shortsId = baseId + '_S';
+        const shortsItem = processingData.find(item => item.id === shortsId);
+
+        if (!shortsItem) {
+            console.log(`No corresponding Shorts item found for ${longItem.id}`);
+            return;
+        }
+
+        // Check if Shorts images are already done or in progress
+        if (shortsItem.image === 'done' || shortsItem.image === 'Done' ||
+            shortsItem.image === 'generating...' || shortsItem.image?.includes('generating')) {
+            console.log(`Shorts ${shortsId} images already ${shortsItem.image}, skipping auto-start`);
+            return;
+        }
+
+        // Check if Shorts has script and output directory
+        if (shortsItem.script !== 'done' || !shortsItem.outputDir) {
+            console.log(`Shorts ${shortsId} not ready for image copying (script: ${shortsItem.script}, outputDir: ${shortsItem.outputDir})`);
+            return;
+        }
+
+        console.log(`🚀 Auto-starting Shorts image copy for ${shortsId} - Long video images are done`);
+
+        try {
+            await generateImages(shortsItem);
+        } catch (error) {
+            console.error(`Failed to auto-start Shorts image copy for ${shortsId}:`, error);
+        }
+    }
+
     // Generate images using Leonardo.ai
     async function generateImages(processingItem, retryOnly = false) {
         if (!processingItem.outputDir) {
@@ -1417,6 +1454,11 @@ Format your response as JSON with this exact structure:
                 } catch (thumbnailError) {
                     console.error(`❌ Thumbnail generation failed for ${processingItem.topic}:`, thumbnailError);
                     // Continue despite thumbnail failure - voice generation will be triggered by generateThumbnail
+                }
+
+                // If this is a Long video, check if we should auto-start Shorts image copying
+                if (processingItem.ytType === 'Long') {
+                    await checkAndStartShortsImageCopy(processingItem);
                 }
             } else {
                 // Don't show confusing ratios, just show generating status
@@ -3793,6 +3835,15 @@ Format your response as JSON with this exact structure:
             console.log(`✨ No auto voice generation needed`);
         }
 
+        // Check for any Long videos that completed images and trigger Shorts copying
+        const longVideosWithImages = processingData.filter(item =>
+            item.ytType === 'Long' && item.image === 'Done'
+        );
+
+        for (const longItem of longVideosWithImages) {
+            await checkAndStartShortsImageCopy(longItem);
+        }
+
         console.log(`🎯 Refresh complete!`);
     }
 
@@ -5037,27 +5088,27 @@ function moveTopicsToPending() {
 
         console.log('Current pending topics before adding:', pendingTopics);
 
-        // Add each topic to pending data - create both Long and Shorts versions
+        // Add each topic to pending data - create both Long and Shorts versions with same base ID
         generatedTopics.forEach((topicObj, index) => {
-            // Don't set _topicId here - let the system generate it automatically
-            // The existing system will generate proper 4-character IDs when loading
+            // Generate a single base ID for both Long and Shorts versions
+            const baseId = generateTopicId();
 
             // Create Long version
             const longTopic = {
                 'Topic': topicObj.topic,
                 'Info': topicObj.info,
-                'YT Type': 'Long'
-                // No _topicId - will be generated automatically
+                'YT Type': 'Long',
+                '_topicId': baseId + '_L'
             };
             console.log(`Adding Long topic ${index + 1}:`, longTopic);
             pendingTopics.push(longTopic);
 
-            // Create Shorts version
+            // Create Shorts version with same base ID
             const shortTopic = {
                 'Topic': topicObj.topic,
                 'Info': topicObj.info,
-                'YT Type': 'Shorts'
-                // No _topicId - will be generated automatically
+                'YT Type': 'Shorts',
+                '_topicId': baseId + '_S'
             };
             console.log(`Adding Shorts topic ${index + 1}:`, shortTopic);
             pendingTopics.push(shortTopic);
