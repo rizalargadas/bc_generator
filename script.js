@@ -3518,6 +3518,7 @@ Format your response as JSON with this exact structure:
 
     // Script Configuration Management
     saveScriptConfigBtn.addEventListener('click', function() {
+        console.log('🔧 Save Configuration button clicked!');
         let isValid = false;
         let errorMessage = '';
 
