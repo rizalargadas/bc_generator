@@ -249,14 +249,14 @@ ADDITIONAL INFO: ${info || 'N/A'}
 
 CONVERSION REQUIREMENTS:
 1. SCRIPT CONVERSION:
-- Keep the EXACT SAME number of scenes as the original
-- Maintain the same scene structure and image descriptions
-- Condense the narration to be punchy, fast-paced, and hook-driven
-- Target 400-500 words total
-- Keep the most compelling, dramatic moments
+- Keep the EXACT SAME number of scenes as the original (DO NOT change scene count)
+- Maintain the same scene structure, titles, and image descriptions
+- Condense ONLY the narration/script - make it punchy, fast-paced, and hook-driven
+- Reduce each scene's narration to approximately 1/15th of the original length
+- Keep the most compelling, dramatic moments from each scene
 - Use short, impactful sentences perfect for Shorts format
-- Maintain the dark, mysterious tone but make it more urgent
-- Keep all scene numbers and image descriptions identical
+- Maintain the dark, mysterious tone but make it more urgent and fast-paced
+- Keep all scene numbers, titles, and image prompts identical to the original
 
 2. GENERATE METADATA:
 - YouTube Title: Create a compelling, clickbait-style title (max 100 chars) that hooks viewers instantly
@@ -370,8 +370,8 @@ Return ONLY a JSON object with this EXACT structure:
         }
 
         const isShort = ytType === 'Shorts';
-        const sceneCount = isShort ? 4 : scriptSceneCount;  // Shorts: 4 scenes, Long: configurable
-        const wordsPerSceneTarget = isShort ? 100 : wordsPerScene;  // Shorts: ~100 words/scene, Long: configurable
+        const sceneCount = scriptSceneCount;  // Both Long and Shorts use same scene count
+        const wordsPerSceneTarget = isShort ? Math.floor(wordsPerScene / 15) : wordsPerScene;  // Shorts: ~1/15 of Long words per scene
         const targetLength = wordsPerSceneTarget * sceneCount;  // Total words = words per scene × scene count
 
         console.log(`📝 Script generation for ${ytType}: ${wordsPerSceneTarget} words/scene × ${sceneCount} scenes = ${targetLength} total words`);
@@ -3911,6 +3911,12 @@ Format your response as JSON with this exact structure:
                                 } else {
                                     item.image = 'generating...';
                                     console.log(`🔄 ${item.topic}: ${status.sceneImageCount}/${item.totalScenes} scene images (missing: ${item.totalScenes - status.sceneImageCount})`);
+
+                                    // Auto-trigger regeneration for missing images
+                                    if (!itemsToGenerateImages.includes(item)) {
+                                        itemsToGenerateImages.push(item);
+                                        console.log(`🎯 ${item.topic}: Marked for image regeneration (incomplete images)`);
+                                    }
                                 }
                             } else {
                                 // No total scenes info available, assume ready if we have scene images
@@ -4057,8 +4063,9 @@ Format your response as JSON with this exact structure:
         if (itemsToGenerateImages.length > 0) {
             console.log(`🚀 Starting auto image generation for ${itemsToGenerateImages.length} items`);
             for (const item of itemsToGenerateImages) {
-                console.log(`🎨 Auto-generating images for ${item.topic}`);
-                await generateImages(item);
+                const retryMode = item.image === 'generating...'; // If already generating, use retry mode
+                console.log(`🎨 Auto-generating images for ${item.topic} (retry mode: ${retryMode})`);
+                await generateImages(item, retryMode);
             }
         } else {
             console.log(`✨ No auto image generation needed`);
