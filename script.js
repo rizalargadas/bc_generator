@@ -368,9 +368,12 @@ The script should conclude with a haunting/hooky outro line/scene. Stay strictly
 
 For each scene's image prompt, ensure they are:
 - Written in clear, descriptive English
-- Appropriate for OpenAI/DALL-E and compliant with their community standards
+- Appropriate for Leonardo.ai and compliant with their community standards
 - Visually accurate and aligned with the events and atmosphere of the script
-- Consistent in describing any recurring or prominent characters (describe their age, gender, clothing, and other distinctive features clearly and use the same description throughout all scenes where they appear)
+- NEVER use people's names in image prompts - instead describe their physical features, age, clothing, and appearance
+- Example WRONG: "Image of John White standing in a field"
+- Example CORRECT: "Image of a middle-aged man with curly brown hair, thick mustache and beard, wearing 1800s period clothing, standing in a field"
+- Consistent in describing any recurring or prominent characters (describe their age, gender, clothing, facial features, and other distinctive physical characteristics clearly and use the same description throughout all scenes where they appear)
 - Include the mood, time of day, setting, and any relevant props or details to make the image atmospheric and relevant to the story
 
 IMPORTANT: Use only plain ASCII text. Avoid special characters, smart quotes, em-dashes, or any Unicode characters. Use simple punctuation only (periods, commas, apostrophes, hyphens, quotes).
@@ -388,11 +391,26 @@ ${isShort ? `For TikTok/Instagram:
 - Social Caption: An engaging caption for TikTok/IG including relevant hashtags like #tiktok #instagram #shorts #mystery #truecrime etc (max 150 characters, NO EMOJIS - plain text only)` : ''}
 
 For YouTube Thumbnail (CRITICAL - Dark History CTR Strategy):
-You are a dark-history YouTube thumbnail strategist, expert in crafting scroll-stopping visuals and text for maximum CTR (click-through rate).
+You are a dark-history YouTube thumbnail expert optimizing for maximum CTR.
 
-Step 1: Craft a vivid, cinematic AI image prompt for Leonardo.ai to generate a YouTube thumbnail for this video script. The image must evoke mystery, eeriness, and curiosity while remaining compliant with platform guidelines. Include a close-up of a human face or the most striking subject of the story. Use dramatic, descriptive language (mood, lighting, emotion, setting) in one sentence — no text on the image.
+Based on the topic/script provided:
 
-Step 2: Create 6-8 short, eerie, clickbait-worthy thumbnail captions (max 6 words each) in a mix of questions, statements, and shocking facts — in the style of: "The Great Disaster of 2025", "Creepiest Things in Vatican", "She is 800 Million Years Old", etc. Your goal: maximize intrigue and clicks while staying on brand.
+1. DETAILED IMAGE PROMPT: Write a comprehensive Leonardo.ai Lucid Realism Model prompt as one cinematic sentence. Be highly descriptive and specific, including:
+- Close-up striking face/subject with detailed features and expressions
+- NEVER use people's names - describe physical features instead (age, hair, facial features, clothing, etc.)
+- Dramatic lighting setup, eerie atmosphere
+- Strong mood descriptors (mysterious, haunting, dreadful)
+- Historical setting, period-accurate details
+- Photorealistic quality descriptors
+
+2. BEST CAPTION: Create ONE optimal clickbait caption (max 6 words) using either:
+- Shocking question ("Who Really Killed...?")
+- Bold statement ("The Truth About...")
+- Mysterious fact ("She Lived 800 Years")
+
+3. FINAL OUTPUT: Combine the detailed image prompt + text overlay instructions for the caption.
+
+Goal: Maximize intrigue and clicks. YouTube-compliant. Prioritize realism and cinematic quality for Leonardo AI.
 
 Format your response as JSON with this exact structure:
 {
@@ -411,8 +429,9 @@ Format your response as JSON with this exact structure:
     "social_caption": "TikTok/IG caption with hashtags (NO EMOJIS)"` : ''}
   },
   "thumbnail": {
-    "image_prompt": "A vivid, cinematic AI image prompt for Leonardo.ai showing [describe the most striking visual from the story with dramatic mood, lighting, emotion, and setting - no text on image]",
-    "text_options": ["Option 1 (max 6 words)", "Option 2 (max 6 words)", "Option 3 (max 6 words)", "Option 4 (max 6 words)", "Option 5 (max 6 words)", "Option 6 (max 6 words)", "Option 7 (max 6 words)", "Option 8 (max 6 words)"]
+    "image_prompt": "A comprehensive, highly descriptive cinematic sentence for Leonardo.ai Lucid Realism Model with close-up face/subject, dramatic lighting, eerie atmosphere, mood descriptors, historical setting, and photorealistic quality",
+    "best_caption": "One optimal clickbait caption (max 6 words)",
+    "final_prompt": "Complete prompt combining the detailed image prompt with text overlay instructions for the best caption"
   }
 }`;
 
@@ -445,7 +464,7 @@ Format your response as JSON with this exact structure:
 
             // Try to parse as JSON, fallback to text parsing if needed
             try {
-                const parsedData = JSON.parse(content);
+                let parsedData = JSON.parse(content);
                 // Clean all text in the parsed data
                 if (parsedData.scenes) {
                     parsedData.scenes = parsedData.scenes.map(scene => ({
@@ -488,8 +507,8 @@ Format your response as JSON with this exact structure:
                 if (parsedData.thumbnail) {
                     parsedData.thumbnail = {
                         image_prompt: cleanText(parsedData.thumbnail.image_prompt || ''),
-                        text_options: parsedData.thumbnail.text_options ?
-                            parsedData.thumbnail.text_options.map(option => cleanText(option)) : []
+                        best_caption: cleanText(parsedData.thumbnail.best_caption || ''),
+                        final_prompt: cleanText(parsedData.thumbnail.final_prompt || '')
                     };
                 }
 
@@ -547,10 +566,8 @@ Format your response as JSON with this exact structure:
     async function generateCSV(topic, topicId, scriptData, ytType = 'Long') {
         const isShort = ytType === 'Shorts';
 
-        // Determine headers based on video type (now includes thumbnail columns)
-        const headers = isShort ?
-            ['Scene #', 'Script for Voice Over', 'Image Generation Prompt', 'YT Title', 'YT Description', 'YT Tags', 'TikTok/IG Caption', 'Thumbnail Image Prompt', 'Thumbnail Text'] :
-            ['Scene #', 'Script for Voice Over', 'Image Generation Prompt', 'YT Title', 'YT Description', 'YT Tags', 'Thumbnail Image Prompt', 'Thumbnail Text'];
+        // All videos now use the same header structure
+        const headers = ['Scene #', 'Script for Voice Over', 'Image Generation Prompt', 'YT Title', 'YT Description', 'YT Tags', 'TikTok/IG Caption', 'Thumbnail Prompt'];
 
         const rows = [headers];
 
@@ -567,30 +584,19 @@ Format your response as JSON with this exact structure:
                 row.push(
                     scriptData.metadata.youtube_title || '',
                     scriptData.metadata.youtube_description || '',
-                    scriptData.metadata.youtube_tags || ''
+                    scriptData.metadata.youtube_tags || '',
+                    scriptData.metadata.social_caption || ''
                 );
 
-                if (isShort) {
-                    row.push(scriptData.metadata.social_caption || '');
-                }
-
-                // Add thumbnail data to first row
+                // Add thumbnail prompt to first row
                 if (scriptData.thumbnail) {
-                    row.push(
-                        scriptData.thumbnail.image_prompt || '',
-                        scriptData.thumbnail.text_options ? scriptData.thumbnail.text_options.join(' | ') : ''
-                    );
+                    row.push(scriptData.thumbnail.final_prompt || '');
                 } else {
-                    row.push('', ''); // Empty thumbnail columns
+                    row.push(''); // Empty thumbnail column
                 }
             } else {
                 // Empty cells for metadata columns in subsequent rows
-                row.push('', '', '');
-                if (isShort) {
-                    row.push('');
-                }
-                // Empty thumbnail columns for subsequent rows
-                row.push('', '');
+                row.push('', '', '', '', '');
             }
 
             rows.push(row);
@@ -1086,6 +1092,25 @@ Format your response as JSON with this exact structure:
 
                         try {
                             // Call Leonardo.ai API for photorealistic images
+                            const requestBody = {
+                                prompt: promptToUse,
+                                modelId: selectedLeonardoModel,
+                                width: 1024,
+                                height: 576,  // 16:9 aspect ratio (1024x576)
+                                num_images: 1,
+                                alchemy: leonardoAlchemyEnabled ? true : false
+                            };
+
+                            // For Lucid Realism model, add required parameters
+                            if (selectedLeonardoModel === '05ce0082-2d80-4a2d-8653-4d1c85e2418e') {
+                                requestBody.contrast = 3.5;
+                                requestBody.styleUUID = '111dc692-d470-4eec-b791-3475abac4c46';
+                                requestBody.ultra = false;
+                            } else {
+                                // For other models, use presetStyle
+                                requestBody.presetStyle = 'CINEMATIC';
+                            }
+
                             const response = await fetch('https://cloud.leonardo.ai/api/rest/v1/generations', {
                                 method: 'POST',
                                 headers: {
@@ -1093,15 +1118,7 @@ Format your response as JSON with this exact structure:
                                     'content-type': 'application/json',
                                     'authorization': `Bearer ${leonardoApiKey}`
                                 },
-                                body: JSON.stringify({
-                                    prompt: promptToUse,
-                                    modelId: selectedLeonardoModel,
-                                    width: 1024,
-                                    height: 576,  // 16:9 aspect ratio (1024x576)
-                                    num_images: 1,
-                                    ...(leonardoAlchemyEnabled && { alchemy: true }),  // Only add alchemy if enabled
-                                    presetStyle: 'CINEMATIC'  // Cinematic style for video content
-                                })
+                                body: JSON.stringify(requestBody)
                             });
 
                             if (!response.ok) {
@@ -1205,6 +1222,25 @@ Format your response as JSON with this exact structure:
 
                     try {
                         // Generate thumbnail using Leonardo.ai API
+                        const thumbnailRequestBody = {
+                            prompt: scenes.thumbnailImagePrompt,
+                            modelId: selectedLeonardoModel,
+                            width: 1024,
+                            height: 576,  // 16:9 aspect ratio for YouTube thumbnails
+                            num_images: 1,
+                            alchemy: leonardoAlchemyEnabled ? true : false
+                        };
+
+                        // For Lucid Realism model, add required parameters
+                        if (selectedLeonardoModel === '05ce0082-2d80-4a2d-8653-4d1c85e2418e') {
+                            thumbnailRequestBody.contrast = 3.5;
+                            thumbnailRequestBody.styleUUID = '111dc692-d470-4eec-b791-3475abac4c46';
+                            thumbnailRequestBody.ultra = false;
+                        } else {
+                            // For other models, use presetStyle
+                            thumbnailRequestBody.presetStyle = 'CINEMATIC';
+                        }
+
                         const thumbnailResponse = await fetch('https://cloud.leonardo.ai/api/rest/v1/generations', {
                             method: 'POST',
                             headers: {
@@ -1212,14 +1248,7 @@ Format your response as JSON with this exact structure:
                                 'content-type': 'application/json',
                                 'authorization': `Bearer ${leonardoApiKey}`
                             },
-                            body: JSON.stringify({
-                                prompt: scenes.thumbnailImagePrompt,
-                                modelId: selectedLeonardoModel,
-                                width: 1024,
-                                height: 576,  // 16:9 aspect ratio for YouTube thumbnails
-                                num_images: 1,
-                                ...(leonardoAlchemyEnabled && { alchemy: true })
-                            })
+                            body: JSON.stringify(thumbnailRequestBody)
                         });
 
                         if (!thumbnailResponse.ok) {
@@ -2152,6 +2181,20 @@ Format your response as JSON with this exact structure:
             }
             tr.appendChild(imageTd);
 
+            const thumbnailTd = document.createElement('td');
+            thumbnailTd.innerHTML = `<span class="status checking">checking...</span>`;
+            tr.appendChild(thumbnailTd);
+
+            // Check thumbnail status asynchronously
+            if (item.outputDir) {
+                checkThumbnailStatus(item.outputDir, thumbnailTd, item.ytType);
+            } else if (item.ytType === 'Shorts') {
+                // Shorts don't need thumbnails
+                thumbnailTd.innerHTML = `<span class="status ready">Ready</span>`;
+            } else {
+                thumbnailTd.innerHTML = `<span class="status not-ready">Not Ready</span>`;
+            }
+
             const voiceTd = document.createElement('td');
             if (item.voiceOvers === 'failed') {
                 // Show retry button for failed voice overs
@@ -2175,20 +2218,6 @@ Format your response as JSON with this exact structure:
                 videoTd.innerHTML = `<span class="status ${getStatusClass(item.video)}">${item.video}</span>`;
             }
             tr.appendChild(videoTd);
-
-            const thumbnailTd = document.createElement('td');
-            thumbnailTd.innerHTML = `<span class="status checking">checking...</span>`;
-            tr.appendChild(thumbnailTd);
-
-            // Check thumbnail status asynchronously
-            if (item.outputDir) {
-                checkThumbnailStatus(item.outputDir, thumbnailTd, item.ytType);
-            } else if (item.ytType === 'Shorts') {
-                // Shorts don't need thumbnails
-                thumbnailTd.innerHTML = `<span class="status ready">Ready</span>`;
-            } else {
-                thumbnailTd.innerHTML = `<span class="status not-ready">Not Ready</span>`;
-            }
 
             const postingTd = document.createElement('td');
             postingTd.innerHTML = `<span class="status checking">checking...</span>`;
@@ -3088,13 +3117,20 @@ Format your response as JSON with this exact structure:
                 modelId: selectedLeonardoModel,
                 width: 1024,
                 height: 576,  // 16:9 aspect ratio
-                num_images: 1,
-                presetStyle: 'CINEMATIC'
+                num_images: 1
             };
 
-            // Only add alchemy if enabled
-            if (leonardoAlchemyEnabled) {
-                requestBody.alchemy = true;
+            // Add alchemy parameter (explicitly set to false if not enabled)
+            requestBody.alchemy = leonardoAlchemyEnabled ? true : false;
+
+            // For Lucid Realism model, add required parameters
+            if (selectedLeonardoModel === '05ce0082-2d80-4a2d-8653-4d1c85e2418e') {
+                requestBody.contrast = 3.5;
+                requestBody.styleUUID = '111dc692-d470-4eec-b791-3475abac4c46';
+                requestBody.ultra = false;
+            } else {
+                // For other models, use presetStyle
+                requestBody.presetStyle = 'CINEMATIC';
             }
 
             console.log('Request body:', requestBody);
@@ -3148,10 +3184,41 @@ Format your response as JSON with this exact structure:
             }
 
             if (imageUrl) {
-                testStatus.textContent = 'Image generated successfully!';
-                testStatus.style.color = '#008000';
-                testImage.src = imageUrl;
-                testImage.style.display = 'block';
+                console.log('Image URL:', imageUrl);
+                testStatus.textContent = 'Downloading image...';
+                testStatus.style.color = '#ff8800';
+
+                // Fetch the image as a blob to handle CORS and authentication issues
+                try {
+                    const imageResponse = await fetch(imageUrl);
+                    if (!imageResponse.ok) {
+                        throw new Error(`Failed to download image: ${imageResponse.status}`);
+                    }
+
+                    const imageBlob = await imageResponse.blob();
+                    const objectUrl = URL.createObjectURL(imageBlob);
+
+                    testImage.onload = function() {
+                        console.log('Image loaded successfully');
+                        testStatus.textContent = 'Image generated successfully!';
+                        testStatus.style.color = '#008000';
+                        // Clean up the object URL after image loads
+                        URL.revokeObjectURL(objectUrl);
+                    };
+
+                    testImage.onerror = function() {
+                        console.error('Failed to display image');
+                        testStatus.textContent = 'Error: Failed to display image';
+                        testStatus.style.color = '#cc0000';
+                        URL.revokeObjectURL(objectUrl);
+                    };
+
+                    testImage.src = objectUrl;
+                    testImage.style.display = 'block';
+                } catch (downloadError) {
+                    console.error('Image download error:', downloadError);
+                    throw new Error(`Failed to download image: ${downloadError.message}`);
+                }
             } else {
                 throw new Error('Generation timed out or failed');
             }
