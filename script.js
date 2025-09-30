@@ -3659,14 +3659,6 @@ Format your response as JSON with this exact structure:
         }
     }
 
-    // Update word count display when input changes
-    longScriptWordsInput.addEventListener('input', function() {
-        const wordCount = parseInt(longScriptWordsInput.value.trim());
-        if (wordCount && wordCount >= 1000 && wordCount <= 20000) {
-            currentWordCountSpan.textContent = wordCount;
-        }
-    });
-
     // Global function for inline script generation
     window.generateScriptForItem = async function(index) {
         if (index >= 0 && index < processingData.length) {
