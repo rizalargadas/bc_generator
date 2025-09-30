@@ -3531,11 +3531,11 @@ Format your response as JSON with this exact structure:
         }
 
         const sceneCount = parseInt(scriptSceneCountInput.value);
-        if (sceneCount && sceneCount >= 1 && sceneCount <= 50) {
-            scriptSceneCount = sceneCount;
-        } else {
+        if (!sceneCount || sceneCount < 1 || sceneCount > 50) {
             isValid = false;
             errorMessage = 'Please enter a valid number of scenes between 1 and 50';
+        } else {
+            scriptSceneCount = sceneCount;
         }
 
         if (isValid) {
