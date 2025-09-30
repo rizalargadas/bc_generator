@@ -10,6 +10,7 @@ String.prototype.hashCode = function() {
 };
 
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 App started - DOMContentLoaded event fired');
     const fileInput = document.getElementById('csvFile');
     const fileInfo = document.getElementById('fileInfo');
     const tabButtons = document.querySelectorAll('.tab-btn');
@@ -4206,7 +4207,9 @@ Format your response as JSON with this exact structure:
     };
 
     // Load data from localStorage on page load
+    console.log('🔄 About to call loadFromLocalStorage()...');
     loadFromLocalStorage();
+    console.log('🔄 About to call updateSelectionCount()...');
     updateSelectionCount();
     updateProcessingSelectionCount();
 
