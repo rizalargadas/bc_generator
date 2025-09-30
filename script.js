@@ -756,6 +756,12 @@ Format your response as JSON with this exact structure:
 
                 const sceneNumber = parseInt(scene.sceneNumber);
 
+                // Skip invalid scene numbers (non-numeric or empty rows)
+                if (isNaN(sceneNumber) || sceneNumber <= 0) {
+                    console.log(`⏭️ Skipping invalid scene number: "${scene.sceneNumber}"`);
+                    continue;
+                }
+
                 // Skip if already exists in retry mode
                 if (retryOnly && existingAudioNumbers.includes(sceneNumber)) {
                     console.log(`⏭️ Skipping scene ${sceneNumber} - audio already exists`);
@@ -826,6 +832,9 @@ Format your response as JSON with this exact structure:
                 if (!success) {
                     console.error(`❌ Failed to generate audio for scene ${sceneNumber} after 3 attempts`);
                     failedScenes.push(sceneNumber);
+
+                    // Log the script content that failed to help debug
+                    console.error(`Failed scene ${sceneNumber} script preview:`, scene.script?.substring(0, 200) + '...');
                 }
             }
 
@@ -837,7 +846,13 @@ Format your response as JSON with this exact structure:
                 console.log(`✅ All ${successCount}/${totalScenes} voice overs generated successfully for ${processingItem.topic}`);
             } else {
                 processingItem.voiceOvers = `${successCount}/${totalScenes}`;
-                console.log(`⚠️ Voice generation incomplete: ${successCount}/${totalScenes} successful, ${failedScenes.length} failed: [${failedScenes.join(', ')}]`);
+                const missingCount = totalScenes - successCount;
+                console.log(`⚠️ Voice generation incomplete: ${successCount}/${totalScenes} successful`);
+                if (failedScenes.length > 0) {
+                    console.log(`   Failed scenes (${failedScenes.length}): [${failedScenes.sort((a,b) => a-b).join(', ')}]`);
+                    processingItem.voiceError = `Failed scenes: ${failedScenes.join(', ')}`;
+                }
+                console.log(`   Missing ${missingCount} audio file(s). Click Continue to retry.`);
             }
 
             // Store the actual scene count for future reference
