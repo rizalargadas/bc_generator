@@ -3935,6 +3935,18 @@ Format your response as JSON with this exact structure:
     loadFromLocalStorage();
     updateSelectionCount();
     updateProcessingSelectionCount();
+
+    // Listen for updatePendingTopics event from moveTopicsToPending function
+    window.addEventListener('updatePendingTopics', function(event) {
+        console.log('Received updatePendingTopics event');
+        if (event.detail && event.detail.pendingTopics) {
+            csvData = event.detail.pendingTopics;
+            console.log('Updated csvData with', csvData.length, 'items');
+            populateTable();
+            console.log('Populated table with new pending topics');
+        }
+    });
+
     // Global function for API help dropdown toggle (exposed to window for inline onclick)
     window.toggleApiHelp = function() {
         const helpContent = document.getElementById('api-help-content');
@@ -5137,19 +5149,21 @@ function moveTopicsToPending() {
         // Show success message
         alert(`Successfully added ${topicCount} topic${topicCount > 1 ? 's' : ''} (${totalEntries} entries: Long + Shorts) to Pending Topics!`);
 
-        // Update csvData immediately to refresh the table
-        csvData = pendingTopics;
-
-        // Refresh the Pending Topics table
-        populateTable();
+        // Trigger a custom event that the main app will listen for
+        const updateEvent = new CustomEvent('updatePendingTopics', {
+            detail: { pendingTopics: pendingTopics }
+        });
+        window.dispatchEvent(updateEvent);
+        console.log('Dispatched updatePendingTopics event with data');
 
         // Switch to Pending Topics tab
         const pendingTabButton = document.querySelector('[data-tab="pending"]');
         if (pendingTabButton) {
             pendingTabButton.click();
+            console.log('Switched to Pending Topics tab');
         }
 
-        console.log('Topics moved to pending and table updated');
+        console.log('Topics moved to pending successfully');
     } else {
         console.log('User cancelled');
     }
