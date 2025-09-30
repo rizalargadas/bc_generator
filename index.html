@@ -404,12 +404,22 @@
                             <div class="form-group">
                                 <label for="long-script-words">Long Video Script Word Count:</label>
                                 <input type="number" id="long-script-words" placeholder="6000" min="1000" max="20000" step="100" class="api-input">
-                                <button class="btn-secondary" id="save-script-config">Save Configuration</button>
                             </div>
                             <div class="config-info">
                                 <p><strong>Note:</strong> Recommended range is 1,000-20,000 words. Shorts videos will automatically use a shorter version derived from the Long script.</p>
                                 <p><strong>Current:</strong> <span id="current-word-count">6000</span> words for Long videos</p>
                             </div>
+
+                            <div class="form-group" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                                <label>Character Count Preferences (Optional):</label>
+                                <p class="help-text" style="margin-bottom: 10px;">Add character counts for different video durations. Leave empty if not needed.</p>
+                                <div id="character-counts-container">
+                                    <!-- Character count entries will be added here -->
+                                </div>
+                                <button class="btn-secondary" id="add-character-count-btn" style="margin-top: 10px;">+ Add Character Count</button>
+                            </div>
+
+                            <button class="btn-secondary" id="save-script-config" style="margin-top: 15px;">Save Configuration</button>
                         </div>
                     </div>
 

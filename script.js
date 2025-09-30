@@ -63,6 +63,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const longScriptWordsInput = document.getElementById('long-script-words');
     const saveScriptConfigBtn = document.getElementById('save-script-config');
     const currentWordCountSpan = document.getElementById('current-word-count');
+    const characterCountsContainer = document.getElementById('character-counts-container');
+    const addCharacterCountBtn = document.getElementById('add-character-count-btn');
     const selectionCount = document.getElementById('selection-count');
     const selectAllBtn = document.getElementById('select-all-btn');
     const deselectAllBtn = document.getElementById('deselect-all-btn');
@@ -114,6 +116,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let selectedLeonardoModel = 'de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3'; // Default to Leonardo Phoenix 1.0
     let leonardoAlchemyEnabled = false; // Default to disabled to save credits
     let longScriptWordCount = 6000; // Default word count for Long videos
+    let characterCounts = []; // Array to store character count preferences
 
     // Calendar state
     let currentDate = new Date();
@@ -1801,6 +1804,7 @@ Format your response as JSON with this exact structure:
             localStorage.setItem('bc_generator_leonardo_alchemy', leonardoAlchemyEnabled);
             localStorage.setItem('bc_generator_paused_items', JSON.stringify(Array.from(pausedItems)));
             localStorage.setItem('bc_generator_script_word_count', longScriptWordCount);
+            localStorage.setItem('bc_generator_character_counts', JSON.stringify(characterCounts));
             localStorage.setItem('bc_generator_weekday_time', weekdayScheduleTime);
             localStorage.setItem('bc_generator_weekend_time', weekendScheduleTime);
             localStorage.setItem('bc_generator_timestamp', new Date().toISOString());
@@ -1928,6 +1932,12 @@ Format your response as JSON with this exact structure:
                 if (currentWordCountSpan) {
                     currentWordCountSpan.textContent = longScriptWordCount;
                 }
+            }
+
+            const savedCharacterCounts = localStorage.getItem('bc_generator_character_counts');
+            if (savedCharacterCounts) {
+                characterCounts = JSON.parse(savedCharacterCounts);
+                renderCharacterCounts();
             }
 
             // Load scheduling settings
@@ -3442,11 +3452,56 @@ Format your response as JSON with this exact structure:
         }
     });
 
+    // Character Count Management Functions
+    function renderCharacterCounts() {
+        characterCountsContainer.innerHTML = '';
+        characterCounts.forEach((entry, index) => {
+            const entryDiv = document.createElement('div');
+            entryDiv.className = 'character-count-entry';
+            entryDiv.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px; align-items: center;';
+            entryDiv.innerHTML = `
+                <input type="text" placeholder="Duration (e.g., 5 min)" value="${entry.duration || ''}"
+                    class="api-input" style="flex: 1;" data-index="${index}" data-field="duration">
+                <input type="number" placeholder="Character count" value="${entry.count || ''}"
+                    class="api-input" style="flex: 1;" min="100" data-index="${index}" data-field="count">
+                <button class="btn-mini" onclick="removeCharacterCount(${index})" title="Remove">✕</button>
+            `;
+            characterCountsContainer.appendChild(entryDiv);
+        });
+    }
+
+    function addCharacterCountEntry() {
+        characterCounts.push({ duration: '', count: '' });
+        renderCharacterCounts();
+    }
+
+    window.removeCharacterCount = function(index) {
+        characterCounts.splice(index, 1);
+        renderCharacterCounts();
+    };
+
+    // Update character count values when inputs change
+    characterCountsContainer.addEventListener('input', function(e) {
+        if (e.target.dataset.index !== undefined) {
+            const index = parseInt(e.target.dataset.index);
+            const field = e.target.dataset.field;
+            if (characterCounts[index]) {
+                characterCounts[index][field] = e.target.value;
+            }
+        }
+    });
+
+    addCharacterCountBtn.addEventListener('click', addCharacterCountEntry);
+
     // Script Configuration Management
     saveScriptConfigBtn.addEventListener('click', function() {
         const wordCount = parseInt(longScriptWordsInput.value.trim());
         if (wordCount && wordCount >= 1000 && wordCount <= 20000) {
             longScriptWordCount = wordCount;
+
+            // Filter out empty character count entries
+            characterCounts = characterCounts.filter(entry => entry.duration && entry.count);
+
             saveToLocalStorage();
             currentWordCountSpan.textContent = wordCount;
 
@@ -3461,6 +3516,7 @@ Format your response as JSON with this exact structure:
             }, 2000);
 
             console.log(`Script word count updated to: ${wordCount} words`);
+            console.log(`Character counts:`, characterCounts);
         } else {
             alert('Please enter a valid word count between 1,000 and 20,000');
         }
