@@ -353,32 +353,24 @@
                                         Enable Alchemy (Enhanced Quality - Costs 25-50% more credits)
                                     </label>
                                 </div>
-                                <div class="form-group">
-                                    <label for="test-prompt-input">Test Leonardo.ai Generation:</label>
-                                    <input type="text" id="test-prompt-input" placeholder="Enter a prompt to test image generation..." class="api-input">
-                                    <button class="btn-primary" id="test-generate-btn" style="display: none;">Generate Test Image</button>
-                                </div>
-                                <div id="test-image-result" style="margin-top: 10px; display: none;">
-                                    <div id="test-status" style="margin-bottom: 10px;"></div>
-                                    <img id="test-image" style="max-width: 100%; height: auto; border-radius: 4px; border: 1px solid #ddd;">
-                                </div>
                                 <div class="api-status" id="leonardo-status">
                                     <span class="status-text">No Leonardo.ai API key configured</span>
                                 </div>
                             </div>
-                            <div id="pollinations-info" style="margin-top: 15px;">
+                            <div id="pollinations-info" style="margin-top: 15px; display: none;">
                                 <div class="api-status" style="background: #e8f5e9; border-color: #4caf50;">
                                     <span class="status-text" style="color: #2e7d32;">✅ Using Pollinations AI - Free image generation with no API key required</span>
                                 </div>
-                                <div class="form-group" style="margin-top: 10px;">
-                                    <label for="test-pollinations-input">Test Pollinations AI:</label>
-                                    <input type="text" id="test-pollinations-input" placeholder="Enter a prompt to test free image generation..." class="api-input">
-                                    <button class="btn-primary" id="test-pollinations-btn">Generate Test Image</button>
-                                </div>
-                                <div id="pollinations-test-result" style="margin-top: 10px; display: none;">
-                                    <div id="pollinations-test-status" style="margin-bottom: 10px;"></div>
-                                    <img id="pollinations-test-image" style="max-width: 100%; height: auto; border-radius: 4px; border: 1px solid #ddd;">
-                                </div>
+                            </div>
+                            <!-- Test section works for both Leonardo and Pollinations -->
+                            <div class="form-group" style="margin-top: 15px;">
+                                <label for="test-prompt-input" id="test-prompt-label">Test Image Generation:</label>
+                                <input type="text" id="test-prompt-input" placeholder="Enter a prompt to test image generation..." class="api-input">
+                                <button class="btn-primary" id="test-generate-btn" style="display: none;">Generate Test Image</button>
+                            </div>
+                            <div id="test-image-result" style="margin-top: 10px; display: none;">
+                                <div id="test-status" style="margin-bottom: 10px;"></div>
+                                <img id="test-image" style="max-width: 100%; height: auto; border-radius: 4px; border: 1px solid #ddd;">
                             </div>
                         </div>
                     </div>

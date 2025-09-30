@@ -38,15 +38,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const leonardoModelSelect = document.getElementById('leonardo-model-select');
     const leonardoAlchemyToggle = document.getElementById('leonardo-alchemy-toggle');
     const testPromptInput = document.getElementById('test-prompt-input');
+    const testPromptLabel = document.getElementById('test-prompt-label');
     const testGenerateBtn = document.getElementById('test-generate-btn');
     const testImageResult = document.getElementById('test-image-result');
     const testStatus = document.getElementById('test-status');
     const testImage = document.getElementById('test-image');
-    const testPollinationsInput = document.getElementById('test-pollinations-input');
-    const testPollinationsBtn = document.getElementById('test-pollinations-btn');
-    const pollinationsTestResult = document.getElementById('pollinations-test-result');
-    const pollinationsTestStatus = document.getElementById('pollinations-test-status');
-    const pollinationsTestImage = document.getElementById('pollinations-test-image');
     const testVoiceInput = document.getElementById('test-voice-input');
     const testVoiceBtn = document.getElementById('test-voice-btn');
     const testVoiceResult = document.getElementById('test-voice-result');
@@ -2071,10 +2067,24 @@ Format your response as JSON with this exact structure:
             // Show Leonardo config, hide Pollinations info
             leonardoConfig.style.display = 'block';
             pollinationsInfo.style.display = 'none';
+            testPromptLabel.textContent = 'Test Leonardo.ai Generation:';
+            // Update test button visibility based on API key and prompt
+            if (leonardoApiKey && testPromptInput.value.trim()) {
+                testGenerateBtn.style.display = 'inline-block';
+            } else {
+                testGenerateBtn.style.display = 'none';
+            }
         } else {
             // Hide Leonardo config, show Pollinations info
             leonardoConfig.style.display = 'none';
             pollinationsInfo.style.display = 'block';
+            testPromptLabel.textContent = 'Test Pollinations AI Generation:';
+            // For Pollinations, show test button if there's a prompt (no API key needed)
+            if (testPromptInput.value.trim()) {
+                testGenerateBtn.style.display = 'inline-block';
+            } else {
+                testGenerateBtn.style.display = 'none';
+            }
         }
     }
 
@@ -3236,21 +3246,29 @@ Format your response as JSON with this exact structure:
 
     // Test prompt input changes
     testPromptInput.addEventListener('input', function() {
-        if (leonardoApiKey && testPromptInput.value.trim()) {
-            testGenerateBtn.style.display = 'inline-block';
-        } else {
-            testGenerateBtn.style.display = 'none';
-        }
+        // Show button if we have a prompt and either Leonardo is enabled with API key, or Leonardo is disabled (Pollinations)
+        const canGenerate = testPromptInput.value.trim() && (leonardoEnabled ? leonardoApiKey : true);
+        testGenerateBtn.style.display = canGenerate ? 'inline-block' : 'none';
     });
 
-    // Test image generation
+    // Test image generation (works for both Leonardo and Pollinations based on toggle)
     testGenerateBtn.addEventListener('click', async function() {
         const prompt = testPromptInput.value.trim();
-        if (!prompt || !leonardoApiKey) {
+        if (!prompt) {
             return;
         }
 
-        testStatus.textContent = 'Generating test image...';
+        const useLeonardo = leonardoEnabled && leonardoApiKey;
+
+        // If Leonardo is enabled but no API key, show error
+        if (leonardoEnabled && !leonardoApiKey) {
+            testStatus.textContent = 'Error: Leonardo.ai API key not configured';
+            testStatus.style.color = '#cc0000';
+            testImageResult.style.display = 'block';
+            return;
+        }
+
+        testStatus.textContent = `Generating test image with ${useLeonardo ? 'Leonardo.ai' : 'Pollinations AI'}...`;
         testStatus.style.color = '#ff8800';
         testImageResult.style.display = 'block';
         testImage.style.display = 'none';
@@ -3258,83 +3276,95 @@ Format your response as JSON with this exact structure:
         testGenerateBtn.textContent = 'Generating...';
 
         try {
-            // Validate API key format
-            if (!leonardoApiKey || leonardoApiKey.length < 10) {
-                throw new Error('Invalid API key format. Please check your Leonardo.ai API key.');
-            }
-
-            console.log('Making Leonardo API request with model:', selectedLeonardoModel);
-
-            // Call Leonardo.ai API
-            const requestBody = {
-                prompt: prompt,
-                modelId: selectedLeonardoModel,
-                width: 1024,
-                height: 576,  // 16:9 aspect ratio
-                num_images: 1
-            };
-
-            // Add alchemy parameter (explicitly set to false if not enabled)
-            requestBody.alchemy = leonardoAlchemyEnabled ? true : false;
-
-            // For Lucid Realism model, add required parameters
-            if (selectedLeonardoModel === '05ce0082-2d80-4a2d-8653-4d1c85e2418e') {
-                requestBody.contrast = 3.5;
-                requestBody.styleUUID = '111dc692-d470-4eec-b791-3475abac4c46';
-                requestBody.ultra = false;
-            } else {
-                // For other models, use presetStyle
-                requestBody.presetStyle = 'CINEMATIC';
-            }
-
-            console.log('Request body:', requestBody);
-
-            const response = await fetch('https://cloud.leonardo.ai/api/rest/v1/generations', {
-                method: 'POST',
-                headers: {
-                    'accept': 'application/json',
-                    'content-type': 'application/json',
-                    'authorization': `Bearer ${leonardoApiKey}`
-                },
-                body: JSON.stringify(requestBody)
-            });
-
-            console.log('Response status:', response.status);
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('API Error Response:', errorText);
-                throw new Error(`API error: ${response.status} - ${errorText}`);
-            }
-
-            const result = await response.json();
-            const generationId = result.sdGenerationJob.generationId;
-
-            // Poll for completion
-            testStatus.textContent = 'Processing image (this may take 30-60 seconds)...';
             let imageUrl = null;
-            let attempts = 0;
-            const maxAttempts = 30; // 60 seconds max
 
-            while (!imageUrl && attempts < maxAttempts) {
-                attempts++;
-                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+            if (useLeonardo) {
+                // Validate API key format
+                if (!leonardoApiKey || leonardoApiKey.length < 10) {
+                    throw new Error('Invalid API key format. Please check your Leonardo.ai API key.');
+                }
 
-                const pollResponse = await fetch(`https://cloud.leonardo.ai/api/rest/v1/generations/${generationId}`, {
+                console.log('Making Leonardo API request with model:', selectedLeonardoModel);
+
+                // Call Leonardo.ai API
+                const requestBody = {
+                    prompt: prompt,
+                    modelId: selectedLeonardoModel,
+                    width: 1024,
+                    height: 576,  // 16:9 aspect ratio
+                    num_images: 1
+                };
+
+                // Add alchemy parameter (explicitly set to false if not enabled)
+                requestBody.alchemy = leonardoAlchemyEnabled ? true : false;
+
+                // For Lucid Realism model, add required parameters
+                if (selectedLeonardoModel === '05ce0082-2d80-4a2d-8653-4d1c85e2418e') {
+                    requestBody.contrast = 3.5;
+                    requestBody.styleUUID = '111dc692-d470-4eec-b791-3475abac4c46';
+                    requestBody.ultra = false;
+                } else {
+                    // For other models, use presetStyle
+                    requestBody.presetStyle = 'CINEMATIC';
+                }
+
+                console.log('Request body:', requestBody);
+
+                const response = await fetch('https://cloud.leonardo.ai/api/rest/v1/generations', {
+                    method: 'POST',
                     headers: {
                         'accept': 'application/json',
+                        'content-type': 'application/json',
                         'authorization': `Bearer ${leonardoApiKey}`
-                    }
+                    },
+                    body: JSON.stringify(requestBody)
                 });
 
-                if (pollResponse.ok) {
-                    const pollData = await pollResponse.json();
-                    if (pollData.generations_by_pk && pollData.generations_by_pk.status === 'COMPLETE') {
-                        if (pollData.generations_by_pk.generated_images && pollData.generations_by_pk.generated_images.length > 0) {
-                            imageUrl = pollData.generations_by_pk.generated_images[0].url;
+                console.log('Response status:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API Error Response:', errorText);
+                    throw new Error(`API error: ${response.status} - ${errorText}`);
+                }
+
+                const result = await response.json();
+                const generationId = result.sdGenerationJob.generationId;
+
+                // Poll for completion
+                testStatus.textContent = 'Processing image (this may take 30-60 seconds)...';
+                let attempts = 0;
+                const maxAttempts = 30; // 60 seconds max
+
+                while (!imageUrl && attempts < maxAttempts) {
+                    attempts++;
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+
+                    const pollResponse = await fetch(`https://cloud.leonardo.ai/api/rest/v1/generations/${generationId}`, {
+                        headers: {
+                            'accept': 'application/json',
+                            'authorization': `Bearer ${leonardoApiKey}`
+                        }
+                    });
+
+                    if (pollResponse.ok) {
+                        const pollData = await pollResponse.json();
+                        if (pollData.generations_by_pk && pollData.generations_by_pk.status === 'COMPLETE') {
+                            if (pollData.generations_by_pk.generated_images && pollData.generations_by_pk.generated_images.length > 0) {
+                                imageUrl = pollData.generations_by_pk.generated_images[0].url;
+                            }
                         }
                     }
                 }
+
+                if (!imageUrl) {
+                    throw new Error('Generation timed out or failed');
+                }
+            } else {
+                // Use Pollinations AI (free)
+                console.log('Using Pollinations AI for test image');
+                const encodedPrompt = encodeURIComponent(prompt);
+                imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=576&nologo=true`;
             }
 
             if (imageUrl) {
@@ -3354,7 +3384,7 @@ Format your response as JSON with this exact structure:
 
                     testImage.onload = function() {
                         console.log('Image loaded successfully');
-                        testStatus.textContent = 'Image generated successfully!';
+                        testStatus.textContent = `Image generated successfully with ${useLeonardo ? 'Leonardo.ai' : 'Pollinations AI'}!`;
                         testStatus.style.color = '#008000';
                         // Clean up the object URL after image loads
                         URL.revokeObjectURL(objectUrl);
@@ -3387,64 +3417,6 @@ Format your response as JSON with this exact structure:
             testGenerateBtn.textContent = 'Generate Test Image';
         }
     });
-
-    // Test Pollinations image generation
-    async function testPollinationsGeneration() {
-        const prompt = testPollinationsInput.value.trim();
-        if (!prompt) {
-            return;
-        }
-
-        pollinationsTestStatus.textContent = 'Generating test image with Pollinations AI...';
-        pollinationsTestStatus.style.color = '#ff8800';
-        pollinationsTestResult.style.display = 'block';
-        pollinationsTestImage.style.display = 'none';
-        testPollinationsBtn.disabled = true;
-        testPollinationsBtn.textContent = 'Generating...';
-
-        try {
-            // Generate Pollinations URL
-            const encodedPrompt = encodeURIComponent(prompt);
-            const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=576&nologo=true`;
-
-            console.log('Pollinations URL:', imageUrl);
-
-            // Fetch the image
-            const imageResponse = await fetch(imageUrl);
-            if (!imageResponse.ok) {
-                throw new Error(`Failed to generate image: ${imageResponse.status}`);
-            }
-
-            const imageBlob = await imageResponse.blob();
-            const objectUrl = URL.createObjectURL(imageBlob);
-
-            pollinationsTestImage.onload = function() {
-                console.log('Pollinations image loaded successfully');
-                pollinationsTestStatus.textContent = 'Image generated successfully with Pollinations AI!';
-                pollinationsTestStatus.style.color = '#008000';
-                URL.revokeObjectURL(objectUrl);
-            };
-
-            pollinationsTestImage.onerror = function() {
-                console.error('Failed to display Pollinations image');
-                pollinationsTestStatus.textContent = 'Error: Failed to display image';
-                pollinationsTestStatus.style.color = '#cc0000';
-                URL.revokeObjectURL(objectUrl);
-            };
-
-            pollinationsTestImage.src = objectUrl;
-            pollinationsTestImage.style.display = 'block';
-
-        } catch (error) {
-            console.error('Pollinations test generation error:', error);
-            pollinationsTestStatus.textContent = `Error: ${error.message}`;
-            pollinationsTestStatus.style.color = '#cc0000';
-            pollinationsTestImage.style.display = 'none';
-        } finally {
-            testPollinationsBtn.disabled = false;
-            testPollinationsBtn.textContent = 'Generate Test Image';
-        }
-    }
 
     // Script Configuration Management
     saveScriptConfigBtn.addEventListener('click', function() {
