@@ -856,8 +856,8 @@ Format your response as JSON with this exact structure:
 
         // Parse header row to find column indices
         const headerParts = lines.length > 0 ? parseCSVLine(lines[0]) : [];
-        const thumbnailImagePromptIndex = headerParts.findIndex(header =>
-            header.toLowerCase().includes('thumbnail image prompt')
+        const thumbnailPromptIndex = headerParts.findIndex(header =>
+            header.toLowerCase().includes('thumbnail prompt') || header.toLowerCase().includes('thumbnail image prompt')
         );
 
         // Skip header row and process scenes
@@ -865,8 +865,8 @@ Format your response as JSON with this exact structure:
             const parts = parseCSVLine(lines[i]);
             if (parts.length >= 3) {
                 // Extract thumbnail prompt from first row only (metadata row)
-                if (i === 1 && thumbnailImagePromptIndex !== -1 && parts[thumbnailImagePromptIndex]) {
-                    thumbnailImagePrompt = parts[thumbnailImagePromptIndex].trim();
+                if (i === 1 && thumbnailPromptIndex !== -1 && parts[thumbnailPromptIndex]) {
+                    thumbnailImagePrompt = parts[thumbnailPromptIndex].trim();
                 }
 
                 scenes.push({
@@ -880,6 +880,181 @@ Format your response as JSON with this exact structure:
         // Add thumbnail prompt to the result
         scenes.thumbnailImagePrompt = thumbnailImagePrompt;
         return scenes;
+    }
+
+    // Generate thumbnail image using Leonardo.ai
+    async function generateThumbnail(processingItem) {
+        if (!leonardoApiKey) {
+            throw new Error('Leonardo.ai API key not configured');
+        }
+
+        if (!processingItem.outputDir) {
+            throw new Error('Output directory not found');
+        }
+
+        // Skip thumbnail generation for Shorts
+        if (processingItem.ytType === 'Shorts') {
+            console.log(`ℹ️ Skipping thumbnail generation for Shorts video: ${processingItem.topic}`);
+            processingItem.thumbnail = 'not needed';
+            populateProcessingTable();
+            saveToLocalStorage();
+            return;
+        }
+
+        // Check if this item is paused
+        if (pausedItems.has(processingItem.id)) {
+            console.log(`⏸️ Thumbnail generation paused for ${processingItem.topic}`);
+            processingItem.thumbnail = 'paused';
+            populateProcessingTable();
+            saveToLocalStorage();
+            return;
+        }
+
+        try {
+            console.log(`🖼️ Starting thumbnail generation for ${processingItem.topic}...`);
+            processingItem.thumbnail = 'generating...';
+            populateProcessingTable();
+
+            // Read the CSV file to get thumbnail prompt
+            const { ipcRenderer } = require('electron');
+            const csvResult = await ipcRenderer.invoke('read-csv-file', {
+                outputDir: processingItem.outputDir,
+                topicId: processingItem.id
+            });
+
+            if (!csvResult.success) {
+                throw new Error('Failed to read CSV file');
+            }
+
+            const scenes = parseCSVContent(csvResult.content);
+
+            if (!scenes.thumbnailImagePrompt) {
+                console.log(`ℹ️ No thumbnail prompt found for ${processingItem.topic}, skipping thumbnail generation`);
+                processingItem.thumbnail = 'no prompt';
+                populateProcessingTable();
+                saveToLocalStorage();
+                return;
+            }
+
+            console.log(`📝 Using thumbnail prompt: ${scenes.thumbnailImagePrompt.substring(0, 100)}...`);
+
+            // Generate thumbnail using Leonardo.ai API
+            const thumbnailRequestBody = {
+                prompt: scenes.thumbnailImagePrompt,
+                modelId: selectedLeonardoModel,
+                width: 1024,
+                height: 576,  // 16:9 aspect ratio for YouTube thumbnails
+                num_images: 1,
+                alchemy: leonardoAlchemyEnabled ? true : false
+            };
+
+            // For Lucid Realism model, add required parameters
+            if (selectedLeonardoModel === '05ce0082-2d80-4a2d-8653-4d1c85e2418e') {
+                thumbnailRequestBody.contrast = 3.5;
+                thumbnailRequestBody.styleUUID = '111dc692-d470-4eec-b791-3475abac4c46';
+                thumbnailRequestBody.ultra = false;
+            } else {
+                // For other models, use presetStyle
+                thumbnailRequestBody.presetStyle = 'CINEMATIC';
+            }
+
+            const thumbnailResponse = await fetch('https://cloud.leonardo.ai/api/rest/v1/generations', {
+                method: 'POST',
+                headers: {
+                    'accept': 'application/json',
+                    'content-type': 'application/json',
+                    'authorization': `Bearer ${leonardoApiKey}`
+                },
+                body: JSON.stringify(thumbnailRequestBody)
+            });
+
+            if (!thumbnailResponse.ok) {
+                const errorText = await thumbnailResponse.text();
+                console.error('Thumbnail API Error Response:', errorText);
+                throw new Error(`Thumbnail API error: ${thumbnailResponse.status} - ${errorText}`);
+            }
+
+            const thumbnailResult = await thumbnailResponse.json();
+            const thumbnailGenerationId = thumbnailResult.sdGenerationJob.generationId;
+
+            // Poll for thumbnail completion
+            let thumbnailUrl = null;
+            let thumbnailAttempts = 0;
+            const maxThumbnailAttempts = 30;
+
+            while (!thumbnailUrl && thumbnailAttempts < maxThumbnailAttempts) {
+                thumbnailAttempts++;
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                const thumbnailPollResponse = await fetch(`https://cloud.leonardo.ai/api/rest/v1/generations/${thumbnailGenerationId}`, {
+                    headers: {
+                        'accept': 'application/json',
+                        'authorization': `Bearer ${leonardoApiKey}`
+                    }
+                });
+
+                if (thumbnailPollResponse.ok) {
+                    const thumbnailPollData = await thumbnailPollResponse.json();
+                    if (thumbnailPollData.generations_by_pk &&
+                        thumbnailPollData.generations_by_pk.status === 'COMPLETE' &&
+                        thumbnailPollData.generations_by_pk.generated_images &&
+                        thumbnailPollData.generations_by_pk.generated_images.length > 0) {
+                        thumbnailUrl = thumbnailPollData.generations_by_pk.generated_images[0].url;
+                    }
+                }
+            }
+
+            if (!thumbnailUrl) {
+                throw new Error('Thumbnail generation timed out');
+            }
+
+            console.log(`✅ Thumbnail generated successfully for ${processingItem.topic}`);
+
+            // Save thumbnail to topic folder root as thumbnail.png
+            const thumbnailSaveResult = await ipcRenderer.invoke('save-thumbnail', {
+                imageUrl: thumbnailUrl,
+                outputDir: processingItem.outputDir,
+                fileName: 'thumbnail.png'
+            });
+
+            if (thumbnailSaveResult.success) {
+                console.log(`💾 Thumbnail saved: ${thumbnailSaveResult.thumbnailPath}`);
+                processingItem.thumbnail = 'done';
+            } else {
+                throw new Error(`Failed to save thumbnail: ${thumbnailSaveResult.error}`);
+            }
+
+            populateProcessingTable();
+            saveToLocalStorage();
+
+            // Automatically start voice generation after thumbnail is done
+            console.log(`🎤 Thumbnail complete for ${processingItem.topic} - starting voice generation...`);
+
+            if (!elevenlabsApiKey || !elevenlabsVoiceId) {
+                console.warn(`❌ Voice generation skipped: Missing ElevenLabs configuration`);
+                processingItem.voiceOvers = 'config missing';
+                populateProcessingTable();
+                saveToLocalStorage();
+            } else {
+                try {
+                    await generateVoiceOvers(processingItem);
+                } catch (voiceError) {
+                    console.error(`❌ Voice generation failed for ${processingItem.topic}:`, voiceError);
+                    processingItem.voiceOvers = 'failed';
+                    processingItem.voiceError = voiceError.message;
+                    populateProcessingTable();
+                    saveToLocalStorage();
+                }
+            }
+
+        } catch (error) {
+            console.error(`❌ Thumbnail generation failed for ${processingItem.topic}:`, error);
+            processingItem.thumbnail = 'failed';
+            processingItem.thumbnailError = error.message;
+            populateProcessingTable();
+            saveToLocalStorage();
+            throw error;
+        }
     }
 
     // Generate images using Leonardo.ai
@@ -1214,111 +1389,9 @@ Format your response as JSON with this exact structure:
 
             // Update status with more detail
             if (successCount === scenes.length) {
-                // Generate thumbnail image for Long videos only
-                if (processingItem.ytType === 'Long' && scenes.thumbnailImagePrompt) {
-                    console.log(`🖼️ Generating thumbnail image for ${processingItem.topic}...`);
-                    processingItem.image = 'generating thumbnail...';
-                    populateProcessingTable();
-
-                    try {
-                        // Generate thumbnail using Leonardo.ai API
-                        const thumbnailRequestBody = {
-                            prompt: scenes.thumbnailImagePrompt,
-                            modelId: selectedLeonardoModel,
-                            width: 1024,
-                            height: 576,  // 16:9 aspect ratio for YouTube thumbnails
-                            num_images: 1,
-                            alchemy: leonardoAlchemyEnabled ? true : false
-                        };
-
-                        // For Lucid Realism model, add required parameters
-                        if (selectedLeonardoModel === '05ce0082-2d80-4a2d-8653-4d1c85e2418e') {
-                            thumbnailRequestBody.contrast = 3.5;
-                            thumbnailRequestBody.styleUUID = '111dc692-d470-4eec-b791-3475abac4c46';
-                            thumbnailRequestBody.ultra = false;
-                        } else {
-                            // For other models, use presetStyle
-                            thumbnailRequestBody.presetStyle = 'CINEMATIC';
-                        }
-
-                        const thumbnailResponse = await fetch('https://cloud.leonardo.ai/api/rest/v1/generations', {
-                            method: 'POST',
-                            headers: {
-                                'accept': 'application/json',
-                                'content-type': 'application/json',
-                                'authorization': `Bearer ${leonardoApiKey}`
-                            },
-                            body: JSON.stringify(thumbnailRequestBody)
-                        });
-
-                        if (!thumbnailResponse.ok) {
-                            const errorText = await thumbnailResponse.text();
-                            console.error('Thumbnail API Error Response:', errorText);
-                            throw new Error(`Thumbnail API error: ${thumbnailResponse.status} - ${errorText}`);
-                        }
-
-                        const thumbnailResult = await thumbnailResponse.json();
-                        const thumbnailGenerationId = thumbnailResult.sdGenerationJob.generationId;
-
-                        // Poll for thumbnail completion
-                        let thumbnailUrl = null;
-                        let thumbnailAttempts = 0;
-                        const maxThumbnailAttempts = 30;
-
-                        while (!thumbnailUrl && thumbnailAttempts < maxThumbnailAttempts) {
-                            thumbnailAttempts++;
-                            await new Promise(resolve => setTimeout(resolve, 2000));
-
-                            const thumbnailPollResponse = await fetch(`https://cloud.leonardo.ai/api/rest/v1/generations/${thumbnailGenerationId}`, {
-                                headers: {
-                                    'accept': 'application/json',
-                                    'authorization': `Bearer ${leonardoApiKey}`
-                                }
-                            });
-
-                            if (thumbnailPollResponse.ok) {
-                                const thumbnailPollData = await thumbnailPollResponse.json();
-                                if (thumbnailPollData.generations_by_pk &&
-                                    thumbnailPollData.generations_by_pk.status === 'COMPLETE' &&
-                                    thumbnailPollData.generations_by_pk.generated_images &&
-                                    thumbnailPollData.generations_by_pk.generated_images.length > 0) {
-                                    thumbnailUrl = thumbnailPollData.generations_by_pk.generated_images[0].url;
-                                }
-                            }
-                        }
-
-                        if (thumbnailUrl) {
-                            console.log(`✅ Thumbnail generated successfully for ${processingItem.topic}`);
-
-                            // Save thumbnail to topic folder root
-                            const { ipcRenderer } = require('electron');
-                            const thumbnailSaveResult = await ipcRenderer.invoke('save-thumbnail', {
-                                imageUrl: thumbnailUrl,
-                                outputDir: processingItem.outputDir,
-                                fileName: 'thumbnail_to_edit.png'
-                            });
-
-                            if (thumbnailSaveResult.success) {
-                                console.log(`💾 Thumbnail saved: ${thumbnailSaveResult.thumbnailPath}`);
-                            } else {
-                                console.error(`❌ Failed to save thumbnail: ${thumbnailSaveResult.error}`);
-                            }
-                        } else {
-                            console.warn(`⚠️ Thumbnail generation timed out for ${processingItem.topic}`);
-                        }
-
-                    } catch (thumbnailError) {
-                        console.error(`❌ Thumbnail generation failed for ${processingItem.topic}:`, thumbnailError);
-                        // Continue with voice generation despite thumbnail failure
-                    }
-                } else if (processingItem.ytType === 'Long') {
-                    console.log(`ℹ️ No thumbnail prompt found for ${processingItem.topic}, skipping thumbnail generation`);
-                } else {
-                    console.log(`ℹ️ Skipping thumbnail generation for Shorts video: ${processingItem.topic}`);
-                }
-
                 // Copy brand images for Long videos
                 if (processingItem.ytType === 'Long' || !processingItem.ytType) {
+                    const { ipcRenderer } = require('electron');
                     const brandResult = await ipcRenderer.invoke('copy-brand-images', {
                         outputDir: processingItem.outputDir,
                         topicId: processingItem.id,
@@ -1333,31 +1406,17 @@ Format your response as JSON with this exact structure:
                 }
 
                 processingItem.image = 'Done';
+                console.log(`✅ Image generation complete for ${processingItem.topic}: ${successCount}/${scenes.length} images successful`);
 
-                // Automatically start voice generation when images are complete
-                console.log(`🎤 Images complete for ${processingItem.topic} - starting voice generation...`);
-                console.log(`📊 Image generation summary: ${successCount}/${scenes.length} images successful`);
-                console.log(`Voice generation prerequisites check:`);
-                console.log(`- ElevenLabs API Key configured: ${elevenlabsApiKey ? 'YES' : 'NO'}`);
-                console.log(`- ElevenLabs Voice ID configured: ${elevenlabsVoiceId ? 'YES' : 'NO'}`);
-                console.log(`- Processing item ID: ${processingItem.id}`);
-                console.log(`- Output directory: ${processingItem.outputDir}`);
+                populateProcessingTable();
+                saveToLocalStorage();
 
-                if (!elevenlabsApiKey || !elevenlabsVoiceId) {
-                    console.warn(`❌ Voice generation skipped: Missing ElevenLabs configuration`);
-                    processingItem.voiceOvers = 'config missing';
-                    populateProcessingTable();
-                    saveToLocalStorage();
-                } else {
-                    try {
-                        await generateVoiceOvers(processingItem);
-                    } catch (voiceError) {
-                        console.error(`❌ Voice generation failed for ${processingItem.topic}:`, voiceError);
-                        processingItem.voiceOvers = 'failed';
-                        processingItem.voiceError = voiceError.message;
-                        populateProcessingTable();
-                        saveToLocalStorage();
-                    }
+                // Automatically start thumbnail generation after images are complete
+                try {
+                    await generateThumbnail(processingItem);
+                } catch (thumbnailError) {
+                    console.error(`❌ Thumbnail generation failed for ${processingItem.topic}:`, thumbnailError);
+                    // Continue despite thumbnail failure - voice generation will be triggered by generateThumbnail
                 }
             } else {
                 // Don't show confusing ratios, just show generating status
@@ -2182,18 +2241,28 @@ Format your response as JSON with this exact structure:
             tr.appendChild(imageTd);
 
             const thumbnailTd = document.createElement('td');
-            thumbnailTd.innerHTML = `<span class="status checking">checking...</span>`;
-            tr.appendChild(thumbnailTd);
-
-            // Check thumbnail status asynchronously
-            if (item.outputDir) {
-                checkThumbnailStatus(item.outputDir, thumbnailTd, item.ytType);
-            } else if (item.ytType === 'Shorts') {
+            if (item.ytType === 'Shorts') {
                 // Shorts don't need thumbnails
-                thumbnailTd.innerHTML = `<span class="status ready">Ready</span>`;
+                thumbnailTd.innerHTML = `<span class="status ready">Not Needed</span>`;
+            } else if (item.thumbnail === 'failed') {
+                // Show retry button for failed thumbnail
+                thumbnailTd.innerHTML = `
+                    <span class="status failed">${item.thumbnail}</span>
+                    <button class="btn-mini" onclick="retryThumbnailGeneration(${index})" title="Retry thumbnail generation">Retry</button>
+                `;
+            } else if (item.thumbnail) {
+                // Show status from processing item
+                thumbnailTd.innerHTML = `<span class="status ${getStatusClass(item.thumbnail)}">${item.thumbnail}</span>`;
             } else {
-                thumbnailTd.innerHTML = `<span class="status not-ready">Not Ready</span>`;
+                // Check thumbnail status asynchronously (for items without status yet)
+                thumbnailTd.innerHTML = `<span class="status checking">checking...</span>`;
+                if (item.outputDir) {
+                    checkThumbnailStatus(item.outputDir, thumbnailTd, item.ytType);
+                } else {
+                    thumbnailTd.innerHTML = `<span class="status waiting">waiting...</span>`;
+                }
             }
+            tr.appendChild(thumbnailTd);
 
             const voiceTd = document.createElement('td');
             if (item.voiceOvers === 'failed') {
@@ -3410,6 +3479,15 @@ Format your response as JSON with this exact structure:
             const item = processingData[index];
             console.log(`Retrying voice generation for ${item.topic}`);
             await generateVoiceOvers(item);
+        }
+    };
+
+    // Retry failed thumbnail generation
+    window.retryThumbnailGeneration = async function(index) {
+        if (index >= 0 && index < processingData.length) {
+            const item = processingData[index];
+            console.log(`Retrying thumbnail generation for ${item.topic}`);
+            await generateThumbnail(item);
         }
     };
 
