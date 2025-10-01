@@ -1217,7 +1217,9 @@ Format your response as JSON with this exact structure:
 
         // Check if this item is paused
         if (pausedItems.has(processingItem.id)) {
-            console.log(`⏸️ Image generation paused for ${processingItem.topic}`);
+            console.log(`⏸️ Image generation paused for ${processingItem.topic} (ID: ${processingItem.id})`);
+            console.log(`Current paused items:`, Array.from(pausedItems));
+            console.log(`To unpause: Open DevTools Console and run: pausedItems.delete('${processingItem.id}'); saveToLocalStorage();`);
             processingItem.image = 'paused';
             populateProcessingTable();
             saveToLocalStorage();
@@ -3566,6 +3568,26 @@ Format your response as JSON with this exact structure:
             const item = processingData[index];
             console.log(`Retrying thumbnail generation for ${item.topic}`);
             await generateThumbnail(item);
+        }
+    };
+
+    // Clear all paused items (useful for debugging)
+    window.clearAllPausedItems = function() {
+        console.log(`Clearing ${pausedItems.size} paused items:`, Array.from(pausedItems));
+        pausedItems.clear();
+        saveToLocalStorage();
+        console.log('✅ All paused items cleared. Refresh the page to see changes.');
+    };
+
+    // Unpause a specific item by ID
+    window.unpauseItem = function(itemId) {
+        if (pausedItems.has(itemId)) {
+            pausedItems.delete(itemId);
+            saveToLocalStorage();
+            console.log(`✅ Unpaused item: ${itemId}`);
+            populateProcessingTable();
+        } else {
+            console.log(`Item ${itemId} is not paused`);
         }
     };
 
