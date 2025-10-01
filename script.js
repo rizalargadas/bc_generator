@@ -1344,11 +1344,16 @@ Format your response as JSON with this exact structure:
 
                             if (useLeonardo) {
                                 // Call Leonardo.ai API for photorealistic images
+                                // Shorts use 9:16 (576x1024), Long use 16:9 (1024x576)
+                                const isShorts = processingItem.ytType === 'Shorts';
+                                const imageWidth = isShorts ? 576 : 1024;
+                                const imageHeight = isShorts ? 1024 : 576;
+
                                 const requestBody = {
                                     prompt: promptToUse,
                                     modelId: selectedLeonardoModel,
-                                    width: 1024,
-                                    height: 576,  // 16:9 aspect ratio (1024x576)
+                                    width: imageWidth,
+                                    height: imageHeight,  // 9:16 for Shorts, 16:9 for Long
                                     num_images: 1,
                                     alchemy: leonardoAlchemyEnabled ? true : false
                                 };
@@ -1413,11 +1418,16 @@ Format your response as JSON with this exact structure:
                                 }
                             } else {
                                 // Use Pollinations AI (free)
-                                console.log(`Using Pollinations AI for scene ${scene.sceneNumber}`);
+                                // Shorts use 9:16 (576x1024), Long use 16:9 (1024x576)
+                                const isShorts = processingItem.ytType === 'Shorts';
+                                const imageWidth = isShorts ? 576 : 1024;
+                                const imageHeight = isShorts ? 1024 : 576;
+
+                                console.log(`Using Pollinations AI for scene ${scene.sceneNumber} (${imageWidth}x${imageHeight})`);
                                 const encodedPrompt = encodeURIComponent(promptToUse);
                                 // Use a deterministic seed based on scene number for consistency
                                 const seed = processingItem.id.hashCode() + scene.sceneNumber;
-                                imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=576&nologo=true&seed=${seed}`;
+                                imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${imageWidth}&height=${imageHeight}&nologo=true&seed=${seed}`;
                             }
 
                             // Save the image
