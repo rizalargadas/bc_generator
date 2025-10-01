@@ -1026,12 +1026,24 @@ Format your response as JSON with this exact structure:
 
         console.log(`🎨 Using ${useLeonardo ? 'Leonardo.ai' : 'Pollinations AI'} for thumbnail generation${isRegeneration ? ' (REGENERATING with variation)' : ''}`);
 
-        // Skip thumbnail generation for Shorts
+        // Skip thumbnail generation for Shorts, but start voice generation
         if (processingItem.ytType === 'Shorts') {
             console.log(`ℹ️ Skipping thumbnail generation for Shorts video: ${processingItem.topic}`);
             processingItem.thumbnail = 'not needed';
             populateProcessingTable();
             saveToLocalStorage();
+
+            // Automatically start voice generation for Shorts (skip thumbnail, go straight to voice)
+            console.log(`🎤 Images complete for Shorts ${processingItem.topic} - starting voice generation...`);
+            try {
+                await generateVoiceOvers(processingItem);
+            } catch (voiceError) {
+                console.error(`❌ Voice generation failed for Shorts ${processingItem.topic}:`, voiceError);
+                processingItem.voiceOvers = 'failed';
+                processingItem.voiceError = voiceError.message;
+                populateProcessingTable();
+                saveToLocalStorage();
+            }
             return;
         }
 
