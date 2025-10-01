@@ -402,20 +402,32 @@
                         </div>
                         <div class="config-section-content">
                             <div class="form-group">
-                                <label for="words-per-scene">Words Per Scene:</label>
+                                <label for="words-per-scene">Words Per Scene (Long):</label>
                                 <input type="number" id="words-per-scene" placeholder="600" min="50" max="2000" step="10" class="api-input">
-                                <p class="help-text" style="margin-top: 5px;">Number of words for each scene. Recommended: 400-800 words per scene for better accuracy.</p>
+                                <p class="help-text" style="margin-top: 5px;">Number of words for each scene in Long videos. Recommended: 400-800 words per scene.</p>
                             </div>
 
                             <div class="form-group">
-                                <label for="script-scene-count">Number of Scenes:</label>
+                                <label for="shorts-words-per-scene">Words Per Scene (Shorts):</label>
+                                <input type="number" id="shorts-words-per-scene" placeholder="40" min="10" max="200" step="5" class="api-input">
+                                <p class="help-text" style="margin-top: 5px;">Number of words for each scene in Shorts videos. Recommended: 30-50 words per scene for 30-60 second videos.</p>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="script-scene-count">Number of Scenes (Long):</label>
                                 <input type="number" id="script-scene-count" placeholder="10" min="1" max="50" step="1" class="api-input">
-                                <p class="help-text" style="margin-top: 5px;">Number of scenes for Long videos. Shorts will always use 4 scenes.</p>
+                                <p class="help-text" style="margin-top: 5px;">Number of scenes for Long videos.</p>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="shorts-scene-count">Number of Scenes (Shorts):</label>
+                                <input type="number" id="shorts-scene-count" placeholder="4" min="1" max="10" step="1" class="api-input">
+                                <p class="help-text" style="margin-top: 5px;">Number of scenes for Shorts videos (recommended: 3-5 scenes).</p>
                             </div>
 
                             <div class="config-info">
                                 <p><strong>Current Settings:</strong></p>
-                                <p id="current-script-config">• 600 words per scene, 10 scenes (≈6000 words total for Long)</p>
+                                <p id="current-script-config">• Long: 600 words/scene × 10 scenes (≈6000 words) | Shorts: 40 words/scene × 4 scenes (≈160 words)</p>
                             </div>
 
                             <button class="btn-secondary" id="save-script-config" style="margin-top: 15px;">Save Configuration</button>

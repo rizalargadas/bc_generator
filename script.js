@@ -69,7 +69,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const testAudio = document.getElementById('test-audio');
     const leonardoStatus = document.getElementById('leonardo-status');
     const wordsPerSceneInput = document.getElementById('words-per-scene');
+    const shortsWordsPerSceneInput = document.getElementById('shorts-words-per-scene');
     const scriptSceneCountInput = document.getElementById('script-scene-count');
+    const shortsSceneCountInput = document.getElementById('shorts-scene-count');
     const saveScriptConfigBtn = document.getElementById('save-script-config');
     const currentScriptConfig = document.getElementById('current-script-config');
     const selectionCount = document.getElementById('selection-count');
@@ -124,8 +126,10 @@ document.addEventListener('DOMContentLoaded', function() {
     let leonardoAlchemyEnabled = false; // Default to disabled to save credits
 
     // Script Configuration
-    let wordsPerScene = 600; // Default words per scene
-    let scriptSceneCount = 10; // Default number of scenes
+    let wordsPerScene = 600; // Default words per scene for Long videos
+    let shortsWordsPerScene = 40; // Default words per scene for Shorts videos
+    let scriptSceneCount = 10; // Default number of scenes for Long videos
+    let shortsSceneCount = 4; // Default number of scenes for Shorts videos
 
     // Calendar state
     let currentDate = new Date();
@@ -379,8 +383,8 @@ Return ONLY a JSON object with this EXACT structure:
         }
 
         const isShort = ytType === 'Shorts';
-        const sceneCount = scriptSceneCount;  // Both Long and Shorts use same scene count
-        const wordsPerSceneTarget = isShort ? Math.floor(wordsPerScene / 15) : wordsPerScene;  // Shorts: ~1/15 of Long words per scene
+        const sceneCount = isShort ? shortsSceneCount : scriptSceneCount;  // Use different scene counts for Shorts vs Long
+        const wordsPerSceneTarget = isShort ? shortsWordsPerScene : wordsPerScene;  // Use separate words per scene for Shorts
         const targetLength = wordsPerSceneTarget * sceneCount;  // Total words = words per scene × scene count
 
         console.log(`📝 Script generation for ${ytType}: ${wordsPerSceneTarget} words/scene × ${sceneCount} scenes = ${targetLength} total words`);
@@ -783,6 +787,17 @@ Format your response as JSON with this exact structure:
             const scenes = parseCSVContent(csvResult.content);
             const totalScenes = scenes.actualSceneCount || scenes.length;
             console.log(`📝 Found ${totalScenes} scenes to generate voice for (${scenes.length} rows in CSV)`);
+
+            // Validate scene count matches configuration
+            const expectedSceneCount = processingItem.ytType === 'Shorts' ? shortsSceneCount : scriptSceneCount;
+            if (scenes.actualSceneCount && scenes.actualSceneCount !== expectedSceneCount) {
+                const warningMsg = `⚠️ Scene count mismatch for ${processingItem.topic} (${processingItem.ytType}):\n` +
+                    `CSV has ${scenes.actualSceneCount} scenes but config expects ${expectedSceneCount} scenes.\n` +
+                    `This video was likely generated with old settings.\n\n` +
+                    `To fix: Delete this video's script file and regenerate with current settings.`;
+                console.warn(warningMsg);
+                // Continue anyway to process existing script
+            }
 
             // Log first scene as example
             if (scenes.length > 0) {
@@ -1192,42 +1207,7 @@ Format your response as JSON with this exact structure:
         }
     }
 
-    // Check and auto-start Shorts image copying when Long is done
-    async function checkAndStartShortsImageCopy(longItem) {
-        if (!longItem || longItem.ytType !== 'Long') return;
-        if (longItem.image !== 'Done') return;
-
-        // Find corresponding Shorts item
-        const baseId = longItem.id.replace('_L', '');
-        const shortsId = baseId + '_S';
-        const shortsItem = processingData.find(item => item.id === shortsId);
-
-        if (!shortsItem) {
-            console.log(`No corresponding Shorts item found for ${longItem.id}`);
-            return;
-        }
-
-        // Check if Shorts images are already done or in progress
-        if (shortsItem.image === 'done' || shortsItem.image === 'Done' ||
-            shortsItem.image === 'generating...' || shortsItem.image?.includes('generating')) {
-            console.log(`Shorts ${shortsId} images already ${shortsItem.image}, skipping auto-start`);
-            return;
-        }
-
-        // Check if Shorts has script and output directory
-        if (shortsItem.script !== 'done' || !shortsItem.outputDir) {
-            console.log(`Shorts ${shortsId} not ready for image copying (script: ${shortsItem.script}, outputDir: ${shortsItem.outputDir})`);
-            return;
-        }
-
-        console.log(`🚀 Auto-starting Shorts image copy for ${shortsId} - Long video images are done`);
-
-        try {
-            await generateImages(shortsItem);
-        } catch (error) {
-            console.error(`Failed to auto-start Shorts image copy for ${shortsId}:`, error);
-        }
-    }
+    // Note: Shorts now generate their own images independently, no longer copying from Long videos
 
     // Generate images using Leonardo.ai
     async function generateImages(processingItem, retryOnly = false) {
@@ -1244,94 +1224,7 @@ Format your response as JSON with this exact structure:
             return; // Exit gracefully without error
         }
 
-        // Handle Shorts videos by copying images from Long video
-        if (processingItem.ytType === 'Shorts') {
-            console.log(`Processing Shorts video: ${processingItem.id} - copying images from Long video`);
-
-            const baseId = processingItem.id.replace('_S', '');
-            const longId = baseId + '_L';
-            const longItem = processingData.find(item => item.id === longId);
-
-            if (!longItem || !longItem.outputDir) {
-                throw new Error('Long video not found or has no output directory');
-            }
-
-            // Check if Long video image generation is completely done
-            const { ipcRenderer } = require('electron');
-            const longStatus = await ipcRenderer.invoke('check-processing-status', {
-                outputDir: longItem.outputDir,
-                topicId: longItem.id
-            });
-
-            if (!longStatus.success || longStatus.status.imageCount === 0) {
-                throw new Error('Long video has no images to copy. Generate Long video images first.');
-            }
-
-            // Verify that Long video image generation is actually complete
-            if (longItem.image !== 'Done') {
-                throw new Error('Long video image generation is not complete yet. Wait for Long video to finish generating all images.');
-            }
-
-            // Additional check: ensure Long has all expected scene images
-            if (longItem.totalScenes && longStatus.status.sceneImageCount < longItem.totalScenes) {
-                throw new Error(`Long video image generation incomplete: ${longStatus.status.sceneImageCount}/${longItem.totalScenes} scenes. Wait for all Long video images to be generated.`);
-            }
-
-            console.log(`Copying ${longStatus.status.imageCount} images from Long to Shorts`);
-
-            // Copy images from Long to Shorts
-            const copyResult = await ipcRenderer.invoke('copy-images-long-to-shorts', {
-                longOutputDir: longItem.outputDir,
-                longTopicId: longItem.id,
-                shortsOutputDir: processingItem.outputDir,
-                shortsTopicId: processingItem.id
-            });
-
-            if (!copyResult.success) {
-                throw new Error(`Failed to copy images: ${copyResult.error}`);
-            }
-
-            console.log(`Successfully copied ${copyResult.copiedCount} images for Shorts video`);
-
-            // Copy brand images for Shorts
-            const brandResult = await ipcRenderer.invoke('copy-brand-images', {
-                outputDir: processingItem.outputDir,
-                topicId: processingItem.id,
-                videoType: 'Shorts'
-            });
-
-            if (brandResult.success) {
-                console.log(`✅ Copied ${brandResult.copiedFiles.length} brand images for Shorts`);
-            } else {
-                console.warn(`⚠️ Failed to copy some brand images for Shorts:`, brandResult.errors);
-            }
-
-            // Update the processing item status
-            processingItem.image = 'done';
-            processingItem.totalScenes = copyResult.copiedCount;
-            populateProcessingTable();
-            saveToLocalStorage();
-
-            // Automatically start voice generation for Shorts after images are copied
-            console.log(`🎤 Images copied for Shorts ${processingItem.topic} - starting voice generation...`);
-            console.log(`Voice generation using Edge TTS (Free)`);
-            console.log(`- Selected Voice: ${elevenlabsVoiceId || 'en-US-AvaMultilingualNeural (default)'}`);
-
-            // Voice generation is always available with Edge TTS (free)
-            try {
-                await generateVoiceOvers(processingItem);
-            } catch (voiceError) {
-                console.error(`❌ Voice generation failed for Shorts ${processingItem.topic}:`, voiceError);
-                processingItem.voiceOvers = 'failed';
-                processingItem.voiceError = voiceError.message;
-                populateProcessingTable();
-                saveToLocalStorage();
-            }
-
-            return; // Exit early for Shorts videos
-        }
-
-        // For Long videos, continue with regular image generation
+        // Both Long and Shorts videos generate their own images independently
         // Check if Leonardo is enabled and has API key, otherwise use Pollinations
         const useLeonardo = leonardoEnabled && leonardoApiKey;
 
@@ -1354,6 +1247,17 @@ Format your response as JSON with this exact structure:
             }
 
             const scenes = parseCSVContent(csvResult.content);
+
+            // Validate scene count matches configuration
+            const expectedSceneCount = processingItem.ytType === 'Shorts' ? shortsSceneCount : scriptSceneCount;
+            if (scenes.actualSceneCount && scenes.actualSceneCount !== expectedSceneCount) {
+                const warningMsg = `⚠️ Scene count mismatch for ${processingItem.topic} (${processingItem.ytType}):\n` +
+                    `CSV has ${scenes.actualSceneCount} scenes but config expects ${expectedSceneCount} scenes.\n` +
+                    `This video was likely generated with old settings.\n\n` +
+                    `To fix: Delete this video's script file and regenerate with current settings.`;
+                console.warn(warningMsg);
+                // Continue anyway to process existing script
+            }
 
             // Check which images already exist if retrying
             let existingSceneNumbers = [];
@@ -1599,10 +1503,7 @@ Format your response as JSON with this exact structure:
                     // Continue despite thumbnail failure - voice generation will be triggered by generateThumbnail
                 }
 
-                // If this is a Long video, check if we should auto-start Shorts image copying
-                if (processingItem.ytType === 'Long') {
-                    await checkAndStartShortsImageCopy(processingItem);
-                }
+                // Shorts now generate their own images independently
             } else {
                 // Don't show confusing ratios, just show generating status
                 processingItem.image = 'generating...';
@@ -1634,98 +1535,8 @@ Format your response as JSON with this exact structure:
 
             let scriptData;
 
-            if (processingItem.ytType === 'Shorts') {
-                // For Shorts, find the corresponding Long video and convert its script
-                console.log(`🔄 Starting Shorts script generation for: ${processingItem.topic}`);
-
-                const baseId = processingItem.id.replace('_S', '');
-                const longId = baseId + '_L';
-                console.log(`📋 Looking for Long video with ID: ${longId}`);
-
-                const longItem = processingData.find(item => item.id === longId);
-
-                if (!longItem) {
-                    throw new Error(`Long video with ID ${longId} not found in processing data`);
-                }
-
-                // Check if Long video script is still being written
-                if (longItem.script === 'writing...' || longItem.script === 'pending') {
-                    // Set Shorts to waiting status
-                    processingItem.script = 'waiting';
-                    populateProcessingTable();
-                    console.log(`⏳ Shorts script set to 'waiting' - Long video script is still being generated`);
-                    return; // Exit without error - will be processed later
-                }
-
-                if (longItem.script !== 'done') {
-                    throw new Error(`Long video script status is '${longItem.script}' - must be 'done' before generating Shorts script`);
-                }
-
-                console.log(`✅ Found Long video: ${longItem.topic}, Output Dir: ${longItem.outputDir}`);
-
-                // Read the Long script content
-                console.log(`📖 Reading Long script content...`);
-                const { ipcRenderer } = require('electron');
-                const csvResult = await ipcRenderer.invoke('read-csv-file', {
-                    outputDir: longItem.outputDir,
-                    topicId: longItem.id
-                });
-
-                if (!csvResult.success) {
-                    console.error(`❌ Failed to read Long script: ${csvResult.error}`);
-                    throw new Error(`Could not read Long script: ${csvResult.error}`);
-                }
-
-                console.log(`📝 Long script content length: ${csvResult.content.length} characters`);
-                console.log(`🔄 Starting OpenAI conversion to Shorts...`);
-
-                // Convert Long script to Shorts
-                const shortsResponse = await convertLongToShorts(csvResult.content, processingItem.topic, processingItem.fullData.Info);
-
-                console.log(`✅ Shorts script conversion completed`);
-
-                // Handle the response whether it's the new JSON format or legacy CSV
-                let shortsScriptText;
-                let metadata = null;
-
-                if (shortsResponse.csv_content) {
-                    // New JSON format with metadata
-                    shortsScriptText = shortsResponse.csv_content;
-                    metadata = shortsResponse.metadata;
-                    console.log(`📊 Received metadata for Shorts video`);
-                } else {
-                    // Legacy format - plain CSV string
-                    shortsScriptText = shortsResponse;
-                    console.log(`📋 Using legacy CSV format (no metadata)`);
-                }
-
-                // Parse the converted script to get scene structure
-                const parsedScenes = parseCSVContent(shortsScriptText);
-
-                if (!parsedScenes || parsedScenes.length === 0) {
-                    throw new Error('Failed to parse converted Shorts script - no scenes found');
-                }
-
-                // Convert to the format expected by generateCSV with validation
-                const scenes = parsedScenes.map((scene, index) => {
-                    if (!scene.sceneNumber || !scene.script || !scene.imagePrompt) {
-                        console.warn(`Scene ${index + 1} missing required fields:`, scene);
-                    }
-
-                    return {
-                        scene_number: scene.sceneNumber || `${index + 1}`,
-                        script: scene.script || 'Missing script content',
-                        image_prompt: scene.imagePrompt || 'Missing image prompt'
-                    };
-                });
-
-                console.log(`Converted ${scenes.length} scenes for Shorts script`);
-                scriptData = { scenes, metadata };
-
-            } else {
-                // For Long videos, generate new script
-                scriptData = await generateScript(processingItem.topic, processingItem.fullData.Info, processingItem.ytType);
-            }
+            // Both Long and Shorts generate their own scripts independently
+            scriptData = await generateScript(processingItem.topic, processingItem.fullData.Info, processingItem.ytType);
 
             // Check if script generation was paused
             if (scriptData.paused) {
@@ -1887,12 +1698,14 @@ Format your response as JSON with this exact structure:
             localStorage.setItem('bc_generator_leonardo_alchemy', leonardoAlchemyEnabled);
             localStorage.setItem('bc_generator_paused_items', JSON.stringify(Array.from(pausedItems)));
             localStorage.setItem('bc_generator_words_per_scene', wordsPerScene);
+            localStorage.setItem('bc_generator_shorts_words_per_scene', shortsWordsPerScene);
             localStorage.setItem('bc_generator_script_scene_count', scriptSceneCount);
+            localStorage.setItem('bc_generator_shorts_scene_count', shortsSceneCount);
             localStorage.setItem('bc_generator_weekday_time', weekdayScheduleTime);
             localStorage.setItem('bc_generator_weekend_time', weekendScheduleTime);
             localStorage.setItem('bc_generator_timestamp', new Date().toISOString());
             console.log('✅ Saved to localStorage successfully');
-            console.log('Script config saved:', { wordsPerScene, scriptSceneCount });
+            console.log('Script config saved:', { wordsPerScene, shortsWordsPerScene, scriptSceneCount, shortsSceneCount });
         } catch (e) {
             console.error('❌ Could not save to localStorage:', e);
         }
@@ -2015,16 +1828,28 @@ Format your response as JSON with this exact structure:
                 wordsPerSceneInput.value = wordsPerScene;
             }
 
+            const savedShortsWordsPerScene = localStorage.getItem('bc_generator_shorts_words_per_scene');
+            if (savedShortsWordsPerScene) {
+                shortsWordsPerScene = parseInt(savedShortsWordsPerScene);
+                shortsWordsPerSceneInput.value = shortsWordsPerScene;
+            }
+
             const savedScriptSceneCount = localStorage.getItem('bc_generator_script_scene_count');
             if (savedScriptSceneCount) {
                 scriptSceneCount = parseInt(savedScriptSceneCount);
                 scriptSceneCountInput.value = scriptSceneCount;
             }
 
+            const savedShortsSceneCount = localStorage.getItem('bc_generator_shorts_scene_count');
+            if (savedShortsSceneCount) {
+                shortsSceneCount = parseInt(savedShortsSceneCount);
+                shortsSceneCountInput.value = shortsSceneCount;
+            }
+
             updateCurrentScriptConfig();
 
             console.log('✅ Loaded from localStorage successfully');
-            console.log('Script config loaded:', { wordsPerScene, scriptSceneCount });
+            console.log('Script config loaded:', { wordsPerScene, shortsWordsPerScene, scriptSceneCount, shortsSceneCount });
 
             // Load scheduling settings
             loadSchedulingSettings();
@@ -3540,8 +3365,9 @@ Format your response as JSON with this exact structure:
 
     // Script Configuration
     function updateCurrentScriptConfig() {
-        const totalWords = wordsPerScene * scriptSceneCount;
-        currentScriptConfig.textContent = `• ${wordsPerScene} words per scene, ${scriptSceneCount} scenes (≈${totalWords} words total for Long)`;
+        const totalLongWords = wordsPerScene * scriptSceneCount;
+        const totalShortsWords = shortsWordsPerScene * shortsSceneCount;
+        currentScriptConfig.textContent = `• Long: ${wordsPerScene} words/scene × ${scriptSceneCount} scenes (≈${totalLongWords} words) | Shorts: ${shortsWordsPerScene} words/scene × ${shortsSceneCount} scenes (≈${totalShortsWords} words)`;
     }
 
     // Script Configuration Management
@@ -3553,17 +3379,33 @@ Format your response as JSON with this exact structure:
         const wps = parseInt(wordsPerSceneInput.value);
         if (!wps || wps < 50 || wps > 2000) {
             isValid = false;
-            errorMessage = 'Please enter a valid words per scene between 50 and 2000';
+            errorMessage = 'Please enter a valid words per scene for Long videos between 50 and 2000';
         } else {
             wordsPerScene = wps;
+        }
+
+        const shortsWps = parseInt(shortsWordsPerSceneInput.value);
+        if (!shortsWps || shortsWps < 10 || shortsWps > 200) {
+            isValid = false;
+            errorMessage = 'Please enter a valid words per scene for Shorts videos between 10 and 200';
+        } else {
+            shortsWordsPerScene = shortsWps;
         }
 
         const sceneCount = parseInt(scriptSceneCountInput.value);
         if (!sceneCount || sceneCount < 1 || sceneCount > 50) {
             isValid = false;
-            errorMessage = 'Please enter a valid number of scenes between 1 and 50';
+            errorMessage = 'Please enter a valid number of scenes for Long videos between 1 and 50';
         } else {
             scriptSceneCount = sceneCount;
+        }
+
+        const shortsCount = parseInt(shortsSceneCountInput.value);
+        if (!shortsCount || shortsCount < 1 || shortsCount > 10) {
+            isValid = false;
+            errorMessage = 'Please enter a valid number of scenes for Shorts videos between 1 and 10';
+        } else {
+            shortsSceneCount = shortsCount;
         }
 
         if (isValid) {
@@ -3581,9 +3423,8 @@ Format your response as JSON with this exact structure:
             }, 2000);
 
             console.log(`Script configuration updated:`);
-            console.log(`  Type: ${scriptLengthType}`);
-            console.log(`  ${scriptLengthType === 'words' ? 'Word count' : 'Character count'}: ${scriptLengthType === 'words' ? scriptWordCount : scriptCharacterCount}`);
-            console.log(`  Scene count: ${scriptSceneCount}`);
+            console.log(`  Long: ${wordsPerScene} words/scene × ${scriptSceneCount} scenes`);
+            console.log(`  Shorts: ${shortsWordsPerScene} words/scene × ${shortsSceneCount} scenes`);
         } else {
             alert(errorMessage);
         }
@@ -3839,23 +3680,9 @@ Format your response as JSON with this exact structure:
 
                         // If script just became done and images are still waiting, mark for auto-generation
                         if (wasScriptWaiting && item.image === 'waiting...' && status.imageCount === 0) {
-                            if (item.ytType === 'Shorts') {
-                                // For Shorts, check if Long counterpart has images ready before marking for copying
-                                const baseId = item.id.replace('_S', '');
-                                const longId = baseId + '_L';
-                                const longItem = processingData.find(longItem => longItem.id === longId);
-
-                                if (longItem && longItem.image === 'Done') {
-                                    itemsToGenerateImages.push(item);
-                                    console.log(`🎯 ${item.topic}: Shorts script done, Long images ready - marked for image copying`);
-                                } else {
-                                    console.log(`📝 ${item.topic}: Shorts script done, waiting for Long images to complete`);
-                                }
-                            } else {
-                                // For Long videos, mark for normal image generation
-                                itemsToGenerateImages.push(item);
-                                console.log(`🎯 ${item.topic}: Long script done - marked for auto image generation`);
-                            }
+                            // Both Long and Shorts generate their own images
+                            itemsToGenerateImages.push(item);
+                            console.log(`🎯 ${item.topic}: Script done - marked for auto image generation`);
                         }
                     }
 
@@ -3876,82 +3703,49 @@ Format your response as JSON with this exact structure:
                         }
                     }
 
-                    // Update image status - handle Shorts videos differently
-                    if (item.ytType === 'Shorts') {
-                        // For Shorts videos, check if Long counterpart has images
-                        const baseId = item.id.replace('_S', '');
-                        const longId = baseId + '_L';
-                        const longItem = processingData.find(longItem => longItem.id === longId);
+                    // Update image status - Both Long and Shorts generate their own images
+                    if (status.sceneImageCount > 0) {
+                        if (item.totalScenes) {
+                            if (status.sceneImageCount >= item.totalScenes) {
+                                item.image = 'Done';
+                                console.log(`✅ ${item.topic}: All ${status.sceneImageCount} scene images complete (${status.imageCount} total files including brand images)`);
 
-                        if (status.sceneImageCount > 0) {
-                            // Shorts has images (copied from Long), mark as done
-                            item.image = 'Done';
-                            console.log(`✅ ${item.topic}: Shorts images copied from Long (${status.sceneImageCount} images)`);
-
-                            // Auto-trigger voice generation if images are complete but voice is not
-                            if (status.audioCount === 0) {
-                                if (!itemsToGenerateVoice.includes(item)) {
-                                    itemsToGenerateVoice.push(item);
-                                    console.log(`🎯 ${item.topic}: Marked for auto voice generation (images complete, voice missing)`);
-                                }
-                            }
-                        } else if (longItem && longItem.image === 'Done') {
-                            // Long has images but Shorts doesn't, mark for copying
-                            item.image = 'waiting...';
-                            if (!itemsToGenerateImages.includes(item)) {
-                                itemsToGenerateImages.push(item);
-                                console.log(`🎯 ${item.topic}: Shorts marked for image copying (Long images ready)`);
-                            }
-                        } else {
-                            // Long doesn't have images yet, wait
-                            item.image = 'waiting...';
-                            console.log(`⏳ ${item.topic}: Shorts waiting for Long video images`);
-                        }
-                    } else {
-                        // For Long videos, use original logic
-                        if (status.sceneImageCount > 0) {
-                            if (item.totalScenes) {
-                                if (status.sceneImageCount >= item.totalScenes) {
-                                    item.image = 'Done';
-                                    console.log(`✅ ${item.topic}: All ${status.sceneImageCount} scene images complete (${status.imageCount} total files including brand images)`);
-
-                                    // Auto-trigger voice generation if images are complete but voice is not
-                                    if (status.audioCount === 0) {
-                                        if (!itemsToGenerateVoice.includes(item)) {
-                                            itemsToGenerateVoice.push(item);
-                                            console.log(`🎯 ${item.topic}: Marked for auto voice generation (images complete, voice missing)`);
-                                        }
-                                    }
-                                } else {
-                                    item.image = 'generating...';
-                                    console.log(`🔄 ${item.topic}: ${status.sceneImageCount}/${item.totalScenes} scene images (missing: ${item.totalScenes - status.sceneImageCount})`);
-
-                                    // Auto-trigger regeneration for missing images
-                                    if (!itemsToGenerateImages.includes(item)) {
-                                        itemsToGenerateImages.push(item);
-                                        console.log(`🎯 ${item.topic}: Marked for image regeneration (incomplete images)`);
+                                // Auto-trigger voice generation if images are complete but voice is not
+                                if (status.audioCount === 0) {
+                                    if (!itemsToGenerateVoice.includes(item)) {
+                                        itemsToGenerateVoice.push(item);
+                                        console.log(`🎯 ${item.topic}: Marked for auto voice generation (images complete, voice missing)`);
                                     }
                                 }
                             } else {
-                                // No total scenes info available, assume ready if we have scene images
-                                item.image = 'Done';
-                                console.log(`📷 ${item.topic}: Found ${status.sceneImageCount} scene images, total scenes unknown - marking as Ready`);
-                            }
+                                item.image = 'generating...';
+                                console.log(`🔄 ${item.topic}: ${status.sceneImageCount}/${item.totalScenes} scene images (missing: ${item.totalScenes - status.sceneImageCount})`);
 
-                            // Log which specific image files exist
-                            if (status.existingImages.length > 0) {
-                                console.log(`📁 ${item.topic}: Image scenes found: [${status.existingImages.sort((a,b) => a-b).join(', ')}]`);
+                                // Auto-trigger regeneration for missing images
+                                if (!itemsToGenerateImages.includes(item)) {
+                                    itemsToGenerateImages.push(item);
+                                    console.log(`🎯 ${item.topic}: Marked for image regeneration (incomplete images)`);
+                                }
                             }
-                        } else if (status.hasScript && !itemsToGenerateImages.includes(item)) {
-                            // Script exists but no images yet, mark for generation
-                            item.image = 'waiting...';
-                            itemsToGenerateImages.push(item);
-                            console.log(`🎯 ${item.topic}: Marked for auto image generation (script ready, no images)`);
                         } else {
-                            // No script yet, keep waiting
-                            item.image = 'waiting...';
-                            console.log(`⏳ ${item.topic}: No images found, waiting for script or generation`);
+                            // No total scenes info available, assume ready if we have scene images
+                            item.image = 'Done';
+                            console.log(`📷 ${item.topic}: Found ${status.sceneImageCount} scene images, total scenes unknown - marking as Ready`);
                         }
+
+                        // Log which specific image files exist
+                        if (status.existingImages.length > 0) {
+                            console.log(`📁 ${item.topic}: Image scenes found: [${status.existingImages.sort((a,b) => a-b).join(', ')}]`);
+                        }
+                    } else if (status.hasScript && !itemsToGenerateImages.includes(item)) {
+                        // Script exists but no images yet, mark for generation
+                        item.image = 'waiting...';
+                        itemsToGenerateImages.push(item);
+                        console.log(`🎯 ${item.topic}: Marked for auto image generation (script ready, no images)`);
+                    } else {
+                        // No script yet, keep waiting
+                        item.image = 'waiting...';
+                        console.log(`⏳ ${item.topic}: No images found, waiting for script or generation`);
                     }
 
                     // Update audio status - only mark as "done" if count matches scene count
@@ -4126,15 +3920,6 @@ Format your response as JSON with this exact structure:
             }
         } else {
             console.log(`✨ No auto thumbnail generation needed`);
-        }
-
-        // Check for any Long videos that completed images and trigger Shorts copying
-        const longVideosWithImages = processingData.filter(item =>
-            item.ytType === 'Long' && item.image === 'Done'
-        );
-
-        for (const longItem of longVideosWithImages) {
-            await checkAndStartShortsImageCopy(longItem);
         }
 
         console.log(`🎯 Refresh complete!`);
