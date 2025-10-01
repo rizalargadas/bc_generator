@@ -250,13 +250,12 @@ ADDITIONAL INFO: ${info || 'N/A'}
 CONVERSION REQUIREMENTS:
 1. SCRIPT CONVERSION:
 - Keep the EXACT SAME number of scenes as the original (DO NOT change scene count)
-- Maintain the same scene structure, titles, and image descriptions
-- Condense ONLY the narration/script - make it punchy, fast-paced, and hook-driven
-- Reduce each scene's narration to approximately 1/15th of the original length
-- Keep the most compelling, dramatic moments from each scene
-- Use short, impactful sentences perfect for Shorts format
+- COPY the exact scene numbers, titles, and image generation prompts from the original - DO NOT modify or regenerate them
+- Condense ONLY the narration/script field - make it punchy, fast-paced, and hook-driven
+- Reduce each scene's narration to approximately 1/15th of the original length (keep key dramatic moments)
+- Use short, impactful sentences perfect for Shorts format (30-60 seconds total video)
 - Maintain the dark, mysterious tone but make it more urgent and fast-paced
-- Keep all scene numbers, titles, and image prompts identical to the original
+- CRITICAL: Image prompts must be EXACTLY the same as the original - no changes, no regeneration
 
 2. GENERATE METADATA:
 - YouTube Title: Create a compelling, clickbait-style title (max 100 chars) that hooks viewers instantly
@@ -281,17 +280,27 @@ Return ONLY a JSON object with this EXACT structure:
             console.log(`🔑 API Key configured: ${openaiApiKey ? 'Yes' : 'No'}`);
 
             const requestBody = {
-                model: 'gpt-4',
-                messages: [{ role: 'user', content: prompt }],
-                max_tokens: 2000,
-                temperature: 0.8
+                model: 'gpt-4o',  // Use GPT-4o for faster processing
+                response_format: { type: "json_object" },  // Force JSON output
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are an expert at condensing long-form content into short, punchy Shorts scripts. Maintain scene count and structure. Return valid JSON only.'
+                    },
+                    {
+                        role: 'user',
+                        content: prompt
+                    }
+                ],
+                max_tokens: 4000,  // Increased for larger scene counts
+                temperature: 0.7
             };
 
             console.log('📤 Sending request to OpenAI...');
 
-            // Add timeout to prevent hanging
+            // Add timeout to prevent hanging - increased to 120 seconds for Shorts conversion
             const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('OpenAI request timeout after 60 seconds')), 60000);
+                setTimeout(() => reject(new Error('OpenAI request timeout after 120 seconds')), 120000);
             });
 
             const fetchPromise = fetch('https://api.openai.com/v1/chat/completions', {
@@ -1154,18 +1163,23 @@ Format your response as JSON with this exact structure:
             populateProcessingTable();
             saveToLocalStorage();
 
-            // Automatically start voice generation after thumbnail is done
-            console.log(`🎤 Thumbnail complete for ${processingItem.topic} - starting voice generation...`);
+            // Automatically start voice generation after thumbnail is done (only if not already done or in progress)
+            // Skip voice generation if this is a regeneration and voice is already complete
+            if (!isRegeneration || (processingItem.voiceOvers !== 'done' && !processingItem.voiceOvers?.includes('generating'))) {
+                console.log(`🎤 Thumbnail complete for ${processingItem.topic} - starting voice generation...`);
 
-            // Voice generation is always available with Edge TTS (free)
-            try {
-                await generateVoiceOvers(processingItem);
-            } catch (voiceError) {
-                console.error(`❌ Voice generation failed for ${processingItem.topic}:`, voiceError);
-                processingItem.voiceOvers = 'failed';
-                processingItem.voiceError = voiceError.message;
-                populateProcessingTable();
-                saveToLocalStorage();
+                // Voice generation is always available with Edge TTS (free)
+                try {
+                    await generateVoiceOvers(processingItem);
+                } catch (voiceError) {
+                    console.error(`❌ Voice generation failed for ${processingItem.topic}:`, voiceError);
+                    processingItem.voiceOvers = 'failed';
+                    processingItem.voiceError = voiceError.message;
+                    populateProcessingTable();
+                    saveToLocalStorage();
+                }
+            } else {
+                console.log(`ℹ️ Skipping voice generation for ${processingItem.topic} - already complete or in progress`);
             }
 
         } catch (error) {
