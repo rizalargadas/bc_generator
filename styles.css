@@ -846,9 +846,9 @@ main {
 
 .btn-mini {
     padding: 4px 8px;
-    background: var(--accent);
-    color: white;
-    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border);
     border-radius: 4px;
     font-family: 'Courier Prime', 'Courier New', monospace;
     font-size: 10px;
@@ -860,7 +860,8 @@ main {
 }
 
 .btn-mini:hover {
-    background: #333333;
+    background: rgba(0, 0, 0, 0.05);
+    border-color: var(--accent);
     transform: translateY(-1px);
 }
 
