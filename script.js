@@ -1568,45 +1568,9 @@ Format your response as JSON with this exact structure:
                 console.log(`Script generated for ${processingItem.topic}`);
                 console.log(`Output directory: ${result.outputDir}`);
 
-                // If this was a Long video, check if there's a waiting Shorts
-                if (processingItem.ytType === 'Long') {
-                    const baseId = processingItem.id.replace('_L', '');
-                    const shortsId = baseId + '_S';
-                    const waitingShorts = processingData.find(item =>
-                        item.id === shortsId && item.script === 'waiting'
-                    );
-
-                    if (waitingShorts) {
-                        console.log(`📹 Found waiting Shorts for ${waitingShorts.topic}, starting script generation...`);
-                        const shortsIndex = processingData.indexOf(waitingShorts);
-                        // Start the Shorts script generation in the background
-                        setTimeout(() => processScriptGeneration(waitingShorts, shortsIndex), 100);
-                    }
-                }
-
-                // Automatically start image generation (skip for Shorts - they wait for Long images)
-                if (processingItem.ytType !== 'Shorts') {
-                    console.log(`Auto-starting image generation for ${processingItem.topic}`);
-                    await generateImages(processingItem);
-                } else {
-                    console.log(`Script generation complete for Shorts ${processingItem.topic} - checking if Long images are ready...`);
-
-                    // Check if Long images are already done, if so, start copying
-                    const baseId = processingItem.id.replace('_S', '');
-                    const longId = baseId + '_L';
-                    const longItem = processingData.find(item => item.id === longId);
-
-                    if (longItem && (longItem.image === 'Done' || longItem.image === 'done')) {
-                        console.log(`✅ Long video images are ready! Auto-starting image copy for Shorts ${processingItem.topic}`);
-                        try {
-                            await generateImages(processingItem);
-                        } catch (error) {
-                            console.error(`Failed to auto-start Shorts image copy:`, error);
-                        }
-                    } else {
-                        console.log(`⏳ Long video images not ready yet (status: ${longItem?.image || 'not found'}). Will copy when Long images complete.`);
-                    }
-                }
+                // Automatically start image generation for both Long and Shorts
+                console.log(`Auto-starting image generation for ${processingItem.topic} (${processingItem.ytType})`);
+                await generateImages(processingItem);
 
                 // Voice overs will be automatically generated after images complete
 
